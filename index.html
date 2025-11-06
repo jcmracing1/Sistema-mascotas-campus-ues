@@ -104,12 +104,14 @@ const pets = [
   { key: "Luna", name: "Luna", photo: "img/luna.jpg", desc: "Perra mediana, suele estar en veterinaria.", color:"#ffd166" }
 ];
 
-// Polígono aproximado del campus UES (San Salvador) — ajustar si deseas más precisión
+  // Polígono del campus UES con 6 vértices
 const campusPolygon = [
-  [13.7233, -89.2032],
-  [13.7224, -89.1994],
-  [13.7165, -89.2003],
-  [13.7152, -89.2060]
+  [13.7233, -89.2032], // Esquina norte-oeste
+  [13.7224, -89.1994], // Norte-este
+  [13.7195, -89.1998], // Punto intermedio este
+  [13.7165, -89.2003], // Sur-este
+  [13.7152, -89.2060], // Sur-oeste
+  [13.7192, -89.2055]  // Punto intermedio oeste
 ];
 
 /* ========== Inicializar mapa ========== */
@@ -377,5 +379,6 @@ document.getElementById('btnCenterCampus').addEventListener('click', ()=>{
 </script>
 </body>
 </html>
+
 
 
