@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ubicación de Mascotas - Campus Universitario</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Fuente y estilo -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#faf9f7;
+      --card:#fff;
+      --shadow:0 4px 18px rgba(0,0,0,0.08);
+      --radius:16px;
+      --accent:#2b7cff;
+    }
+    body {
+      margin:0;
+      background:var(--bg);
+      font-family:"Nunito",sans-serif;
+      color:#222;
+    }
+
+    header {
+      text-align:center;
+      padding:20px;
+      font-weight:800;
+      font-size:22px;
+      letter-spacing:1px;
+    }
+
+    /* Mascota selector */
+    .pet-list {
+      display:flex;
+      gap:14px;
+      justify-content:center;
+      flex-wrap:wrap;
+      margin-bottom:20px;
+    }
+    .pet-card {
+      background:var(--card);
+      box-shadow:var(--shadow);
+      border-radius:var(--radius);
+      width:150px;
+      text-align:center;
+      cursor:pointer;
+      transition:transform 0.15s ease;
+    }
+    .pet-card:hover { transform:scale(1.05); }
+    .pet-card img {
+      width:100%;
+      height:120px;
+      border-top-left-radius:var(--radius);
+      border-top-right-radius:var(--radius);
+      object-fit:cover;
+    }
+    .pet-card h3 {
+      margin:6px;
+      font-size:15px;
+    }
+
+    /* Layout principal */
+    .container {
+      display:grid;
+      grid-template-columns: 1fr 1fr 320px;
+      grid-gap:18px;
+      max-width:1200px;
+      margin:0 auto;
+      padding:10px;
+    }
+
+    .photo-card, .desc-card, .controls, .map-card, .history {
+      background:var(--card);
+      padding:14px;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    .photo-card img {
+      width:100%;
+      height:320px;
+      object-fit:cover;
+      border-radius:10px;
+    }
+
+    .map-card { grid-column: 1 / span 2; }
+    #map { width:100%; height:430px; border-radius:10px; }
+
+    .history { overflow:auto; height:460px; }
+    .entry {
+      padding:8px;
+      border:1px solid #eee;
+      border-radius:8px;
+      margin-bottom:6px;
+      cursor:pointer;
+    }
+
+    @media(max-width:1024px){
+      .container{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>SISTEMA DE UBICACIÓN DE MASCOTAS EN EL CAMPUS UNIVERSITARIO</header>
+
+  <!-- 🐕 Lista de mascotas -->
+  <section class="pet-list" id="petList"></section>
+
+  <div class="container">
+    <!-- Foto -->
+    <div class="photo-card">
+      <h2 id="petName">Nombre de Mascota</h2>
+      <img id="petPhoto" src="img/lola.jpg" alt="Mascota" />
+    </div>
+
+    <!-- Descripción -->
+    <div class="desc-card">
+      <h3>Descripción</h3>
+      <p id="petDesc">
+        Aquí se muestra la información de la mascota seleccionada: raza, edad, comportamiento o notas relevantes.
+      </p>
+    </div>
+
+    <!-- Panel lateral -->
+    <aside class="controls">
+      <h4>Última posición</h4>
+      <p>Lat: <span id="lastLat">--</span></p>
+      <p>Lng: <span id="lastLng">--</span></p>
+      <p>Alt: <span id="lastAlt">--</span> m</p>
+      <p>Actualizado: <span id="lastTime">--</span></p>
+    </aside>
+
+    <!-- Mapa -->
+    <section class="map-card">
+      <h3>Ubicación actual</h3>
+      <div id="map"></div>
+    </section>
+
+    <!-- Historial -->
+    <aside class="history">
+      <h3>Historial de ubicaciones</h3>
+      <div id="historyList"></div>
+    </aside>
+  </div>
+
+<script>
+/* ---------------- Mascotas (ThingSpeak config) ---------------- */
+const pets = [
+  {
+    name: "Lola",
+    desc: "Perrita de raza pequeña muy sociable. Se mueve principalmente por el área verde del campus.",
+    photo: "img/lola.jpg",
+    channel: "3146056",
+    api: "GSRK8SFFHTSPZALK"
+  },
+  {
+    name: "Max",
+    desc: "Gato explorador del edificio principal. Le gusta pasear cerca de cafetería.",
+    photo: "img/max.jpg",
+    channel: "3146056",
+    api: "GSRK8SFFHTSPZALK"
+  },
+  {
+    name: "Luna",
+    desc: "Perra mediana, suele estar en el área de veterinaria. Usa collar GPS color azul.",
+    photo: "img/luna.jpg",
+    channel: "3146056",
+    api: "GSRK8SFFHTSPZALK"
+  }
+];
+
+/* ---------------- Construir tarjetas de mascotas ---------------- */
+const petList = document.getElementById("petList");
+pets.forEach((p,i)=>{
+  const el=document.createElement("div");
+  el.className="pet-card";
+  el.innerHTML=`<img src="${p.photo}" alt="${p.name}"><h3>${p.name}</h3>`;
+  el.onclick=()=>loadPet(i);
+  petList.appendChild(el);
+});
+
+/* ---------------- Mapa inicial ---------------- */
+const map = L.map('map').setView([13.7, -89.2], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap'
+}).addTo(map);
+
+let marker=null;
+let polyline=L.polyline([], {color:'#ff6b6b',weight:4}).addTo(map);
+
+/* ---------------- Función para cargar una mascota ---------------- */
+async function loadPet(index){
+  const pet = pets[index];
+  document.getElementById("petName").textContent = pet.name;
+  document.getElementById("petDesc").textContent = pet.desc;
+  document.getElementById("petPhoto").src = pet.photo;
+
+  const url = `https://api.thingspeak.com/channels/${pet.channel}/feeds.json?api_key=${pet.api}&results=100`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const feeds = data.feeds;
+
+  if(!feeds || feeds.length===0) return;
+
+  const coords = feeds
+    .filter(f=>f.field1 && f.field2)
+    .map(f=>({
+      lat:parseFloat(f.field1),
+      lng:parseFloat(f.field2),
+      alt:f.field3?parseFloat(f.field3):0,
+      time:f.created_at
+    }));
+
+  const last = coords[coords.length-1];
+  document.getElementById("lastLat").textContent = last.lat.toFixed(6);
+  document.getElementById("lastLng").textContent = last.lng.toFixed(6);
+  document.getElementById("lastAlt").textContent = last.alt.toFixed(1);
+  document.getElementById("lastTime").textContent = new Date(last.time).toLocaleString();
+
+  if(marker) map.removeLayer(marker);
+  marker=L.marker([last.lat,last.lng]).addTo(map)
+    .bindPopup(`${pet.name}<br>${new Date(last.time).toLocaleString()}`).openPopup();
+
+  polyline.setLatLngs(coords.map(c=>[c.lat,c.lng]));
+  map.fitBounds(polyline.getBounds().pad(0.2));
+
+  // Historial
+  const list=document.getElementById("historyList");
+  list.innerHTML='';
+  coords.reverse().forEach(c=>{
+    const item=document.createElement('div');
+    item.className='entry';
+    item.textContent=`${new Date(c.time).toLocaleString()} → ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;
+    item.onclick=()=>map.setView([c.lat,c.lng],18);
+    list.appendChild(item);
+  });
+}
+
+/* ---------------- Cargar primera mascota por defecto ---------------- */
+loadPet(0);
+</script>
+</body>
+</html>
