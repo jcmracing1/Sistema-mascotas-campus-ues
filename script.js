@@ -1,41 +1,17 @@
-// script.js (Realtime DB)
-import { rtdb, storage } from './firebase-config.js';
-import { ref as dbRef, push, set, onValue, get, child, query, orderByChild } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+// script.js - JSONBin per-pet (master key embedded).
+// Note: embedding master key in client code allows anyone to create bins using your key.
 
-// CONFIG
+const JSONBIN_MASTER_KEY = "$2a$10$.4D97bG7TmCMHK2IxDIbAekq00vrpkCEmQafbQ8MaJWxBcj8KQ9Le";
+const JSONBIN_BASE = "https://api.jsonbin.io/v3/b";
+
 const THINGSPEAK_CHANNEL = 3146056;
 const POLL_MS = 15000; // 15s
 
-const mascotasRef = dbRef(rtdb, 'mascotas');
-const visitasRef = dbRef(rtdb, 'visitas');
-
-// Map
 const map = L.map('map').setView([13.719, -89.203], 15);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const campusPoly = [[13.7233, -89.2032],[13.7224, -89.1994],[13.7195, -89.1998],[13.7165, -89.2003],[13.7152, -89.2060],[13.7192, -89.2055]];
+L.polygon(campusPoly, {color:'#2b7cff', weight:2, fillOpacity:0.03}).addTo(map);
 
-// polygon
-const campusPoly = [
-  [13.7233, -89.2032],
-  [13.7224, -89.1994],
-  [13.7195, -89.1998],
-  [13.7165, -89.2003],
-  [13.7152, -89.2060],
-  [13.7192, -89.2055]
-];
-L.polygon(campusPoly, { color:'#2b7cff', weight:2, fillOpacity:0.03 }).addTo(map);
-
-function isInside(lat,lng){
-  const pt = turf.point([lng, lat]);
-  const poly = turf.polygon([[ 
-    [-89.2032, 13.7233], [-89.1994, 13.7224], [-89.1998, 13.7195],
-    [-89.2003, 13.7165], [-89.2060, 13.7152], [-89.2055, 13.7192],
-    [-89.2032, 13.7233]
-  ]]);
-  return turf.booleanPointInPolygon(pt, poly);
-}
-
-// UI
 const petSelector = document.getElementById('petSelector');
 const petNameEl = document.getElementById('petName');
 const petPhotoEl = document.getElementById('petPhoto');
@@ -50,114 +26,137 @@ const newDesc = document.getElementById('newDesc');
 const newPhoto = document.getElementById('newPhoto');
 const savePetBtn = document.getElementById('savePetBtn');
 
-let pets = {};
+let pets = []; // {binId, nombre, descripcion, foto}
 let markers = [];
 let lastLocation = null;
 
-savePetBtn.addEventListener('click', async () => {
+async function createPetBin(name, desc, photoDataUrl) {
+  const payload = { meta: { nombre: name, descripcion: desc }, foto: photoDataUrl, visits: [] };
+  const res = await fetch(JSONBIN_BASE, { method:'POST', headers: { 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY }, body: JSON.stringify({ data: payload, private: true }) });
+  if(!res.ok) throw new Error('Create bin failed: ' + res.status);
+  const j = await res.json();
+  const id = j.metadata && j.metadata.id ? j.metadata.id : (j.record && j.record.id ? j.record.id : null);
+  return id;
+}
+
+async function readBin(binId) {
+  const url = `${JSONBIN_BASE}/${binId}/latest`;
+  const res = await fetch(url, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+  if(!res.ok) return null;
+  const j = await res.json();
+  return j.record ? j.record : j;
+}
+
+async function updateBin(binId, data) {
+  const url = `${JSONBIN_BASE}/${binId}`;
+  const res = await fetch(url, { method:'PUT', headers: { 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY }, body: JSON.stringify({ data: data }) });
+  return res.ok;
+}
+
+savePetBtn.addEventListener('click', async ()=>{
   const name = newName.value.trim();
   const desc = newDesc.value.trim();
   const file = newPhoto.files[0];
-  if(!name || !file){ alert('Nombre y foto son obligatorios'); return; }
-
-  const sref = storageRef(storage, `mascotas/${Date.now()}_${file.name}`);
-  await uploadBytes(sref, file);
-  const url = await getDownloadURL(sref);
-
-  const nref = push(mascotasRef);
-  await set(nref, { nombre: name, descripcion: desc, foto: url, createdAt: Date.now() });
-
-  newName.value=''; newDesc.value=''; newPhoto.value='';
+  if(!name || !file){ alert('Nombre y foto requeridos'); return; }
+  const reader = new FileReader();
+  reader.onload = async (e)=>{
+    const dataUrl = e.target.result;
+    try{
+      const binId = await createPetBin(name, desc, dataUrl);
+      pets.push({ binId: binId, nombre: name, descripcion: desc, foto: dataUrl, visits: [] });
+      localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets));
+      renderPetSelector();
+      newName.value=''; newDesc.value=''; newPhoto.value='';
+      alert('Mascota creada. Bin ID: ' + binId);
+    }catch(err){ console.error(err); alert('Error creando mascota: ' + err.message); }
+  };
+  reader.readAsDataURL(file);
 });
 
-onValue(mascotasRef, (snap) => {
+function renderPetSelector(){
   petSelector.innerHTML = '';
-  pets = {};
-  snap.forEach(childSnap => {
-    const key = childSnap.key;
-    const val = childSnap.val();
-    pets[key] = val;
+  pets.forEach(p=>{
     const div = document.createElement('div');
     div.className = 'pet-item';
-    div.innerHTML = `<img src="${val.foto}" alt="${val.nombre}"><div><strong>${val.nombre}</strong><div class="muted">${val.descripcion || ''}</div></div>`;
-    div.onclick = () => selectPet(key);
+    div.innerHTML = `<img src="${p.foto}" alt="${p.nombre}"><div><strong>${p.nombre}</strong><div class="muted">${p.descripcion||''}</div></div>`;
+    div.onclick = ()=>selectPet(p.binId);
     petSelector.appendChild(div);
   });
-  const keys = Object.keys(pets);
-  if(keys.length>0) selectPet(keys[0]);
-});
+  if(pets.length>0) selectPet(pets[0].binId);
+}
 
-function selectPet(key){
-  const p = pets[key];
-  if(!p) return;
+async function loadAllBins(){
+  const cache = localStorage.getItem('jsonbin_pet_bins');
+  if(cache){ pets = JSON.parse(cache); renderPetSelector(); return; }
+}
+
+async function selectPet(binId){
+  let p = pets.find(x=>x.binId===binId);
+  if(!p){
+    const rec = await readBin(binId);
+    if(!rec) return;
+    p = { binId: binId, nombre: rec.meta.nombre, descripcion: rec.meta.descripcion, foto: rec.foto, visits: rec.visits || [] };
+    pets.push(p); localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets));
+  }
   petNameEl.textContent = p.nombre;
   petPhotoEl.src = p.foto;
   petDescEl.textContent = p.descripcion || '';
-  renderHistory();
+  renderHistory(p.visits || []);
 }
 
-async function renderHistory(){
-  historyList.innerHTML = '<div class="muted">Cargando historial...</div>';
-  try{
-    const q = query(visitasRef, orderByChild('ts'));
-    const snap = await get(q);
-    historyList.innerHTML = '';
-    if(!snap.exists()){ historyList.innerHTML = '<div class="muted">No hay historial</div>'; return; }
-    const arr = [];
-    snap.forEach(childSnap => arr.push(childSnap.val()));
-    arr.reverse();
-    arr.slice(0,200).forEach(v=>{
-      const date = new Date(v.ts);
-      const el = document.createElement('div');
-      el.className = 'entry';
-      el.innerHTML = `<div>${date.toLocaleString()}</div><div style="font-weight:700">${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}</div>`;
-      el.onclick = ()=>{ map.setView([v.lat, v.lng], 17); L.popup().setLatLng([v.lat, v.lng]).setContent(`${date.toLocaleString()}<br>${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}`).openOn(map); };
-      historyList.appendChild(el);
-    });
-  }catch(e){ console.error(e); }
+function renderHistory(arr){
+  historyList.innerHTML = '';
+  if(!arr || arr.length===0){ historyList.innerHTML = '<div class="muted">No hay historial</div>'; return; }
+  arr.slice().reverse().forEach(v=>{
+    const d = new Date(v.ts);
+    const el = document.createElement('div');
+    el.className = 'entry';
+    el.innerHTML = `<div>${d.toLocaleString()}</div><div style="font-weight:700">${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}</div>`;
+    el.onclick = ()=>{ map.setView([v.lat, v.lng], 17); L.popup().setLatLng([v.lat, v.lng]).setContent(`${d.toLocaleString()}<br>${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}`).openOn(map); };
+    historyList.appendChild(el);
+  });
 }
 
 async function pollThingSpeak(){
   try{
-    const resp = await fetch(`https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL}/feeds.json?results=1`);
-    const data = await resp.json();
-    if(data && data.feeds && data.feeds.length>0){
-      const f = data.feeds[0];
-      const lat = parseFloat(f.field1);
-      const lng = parseFloat(f.field2);
-      if(isNaN(lat) || isNaN(lng)) return;
+    const res = await fetch(`https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL}/feeds.json?results=1`);
+    const j = await res.json();
+    if(!j || !j.feeds || j.feeds.length===0) return;
+    const f = j.feeds[0];
+    const lat = parseFloat(f.field1);
+    const lng = parseFloat(f.field2);
+    if(isNaN(lat) || isNaN(lng)) return;
+    lastUpdateEl.textContent = new Date(f.created_at).toLocaleString();
+    lastLatEl.textContent = lat.toFixed(6);
+    lastLngEl.textContent = lng.toFixed(6);
 
-      lastUpdateEl.textContent = new Date(f.created_at).toLocaleString();
-      lastLatEl.textContent = lat.toFixed(6);
-      lastLngEl.textContent = lng.toFixed(6);
+    const changed = !lastLocation || (Math.abs(lastLocation.lat - lat) > 1e-6 || Math.abs(lastLocation.lng - lng) > 1e-6);
+    lastLocation = {lat, lng};
 
-      const changed = !lastLocation || (Math.abs(lastLocation.lat - lat) > 1e-6 || Math.abs(lastLocation.lng - lng) > 1e-6);
-      lastLocation = { lat, lng };
+    markers.forEach(m=>map.removeLayer(m)); markers = [];
+    pets.forEach(p=>{ const mk = L.marker([lat, lng]).addTo(map).bindPopup(`<img src="${p.foto}" width="80"><br><b>${p.nombre}</b><br>${p.descripcion||''}`); markers.push(mk); });
+    map.setView([lat, lng]);
 
-      markers.forEach(m=>map.removeLayer(m));
-      markers = [];
-      Object.values(pets).forEach(p=>{
-        const mk = L.marker([lat, lng]).addTo(map).bindPopup(`<img src="${p.foto}" width="80"><br><b>${p.nombre}</b><br>${p.descripcion || ''}`);
-        markers.push(mk);
-      });
-      map.setView([lat, lng]);
+    const inside = turf.booleanPointInPolygon(turf.point([lng, lat]), turf.polygon([[ [-89.2032,13.7233],[-89.1994,13.7224],[-89.1998,13.7195],[-89.2003,13.7165],[-89.2060,13.7152],[-89.2055,13.7192],[-89.2032,13.7233] ]]));
+    if(!inside){ const n = document.createElement('div'); n.className='entry'; n.innerHTML=`<strong style="color:var(--danger)">ALERTA: Fuera del campus</strong> — ${new Date().toLocaleString()} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`; historyList.prepend(n); }
 
-      const inside = isInside(lat, lng);
-      if(!inside){
-        const notif = document.createElement('div');
-        notif.className = 'entry';
-        notif.innerHTML = `<strong style="color:var(--danger)">ALERTA: Fuera del campus</strong> — ${new Date().toLocaleString()} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        historyList.prepend(notif);
+    if(changed){
+      for(const p of pets){
+        try{
+          const rec = await readBin(p.binId);
+          const visits = (rec && rec.visits) ? rec.visits : [];
+          visits.push({ lat: lat, lng: lng, ts: Date.now() });
+          const newData = { meta: rec.meta, foto: rec.foto, visits: visits };
+          await updateBin(p.binId, newData);
+          p.visits = visits;
+          localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets));
+        }catch(err){ console.warn('Error updating bin for', p.binId, err); }
       }
-
-      if(changed){
-        const nref = push(visitasRef);
-        await set(nref, { lat: lat, lng: lng, ts: Date.now() });
-        renderHistory();
-      }
+      const sel = pets[0]; if(sel) renderHistory(sel.visits || []);
     }
   }catch(err){ console.warn('ThingSpeak poll error', err); }
 }
 
+loadAllBins();
 pollThingSpeak();
 setInterval(pollThingSpeak, POLL_MS);

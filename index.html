@@ -3,45 +3,35 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Sistema de ubicación de mascotas - UES</title>
+  <title>Mascotas UES - JSONBin</title>
   <link rel="stylesheet" href="style.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
 <body>
-  <header>
-    <h1>SISTEMA DE UBICACIÓN DE MASCOTAS EN EL CAMPUS UNIVERSITARIO</h1>
-  </header>
+  <header><h1>SISTEMA DE UBICACIÓN DE MASCOTAS - UES</h1></header>
 
   <main class="page">
     <div class="pet-selector" id="petSelector"></div>
 
     <section class="photo-card">
       <h2 id="petName">Nombre de Mascota</h2>
-      <div class="photo-box">
-        <img id="petPhoto" src="img/placeholder_pet.png" alt="Foto mascota"/>
-      </div>
-      <small class="caption">fotografía</small>
+      <div class="photo-box"><img id="petPhoto" src="img/placeholder_pet.png" /></div>
+      <small>fotografía</small>
     </section>
 
     <section class="desc-card">
       <h3>DESCRIPCIÓN</h3>
-      <p id="petDesc">Aquí aparecerá la descripción de la mascota seleccionada.</p>
+      <p id="petDesc">Descripción de la mascota.</p>
     </section>
 
     <aside class="controls">
-      <label class="control-title">BUSQUEDA DE MASCOTA</label>
-      <div class="search">
-        <input id="searchInput" placeholder="Buscar por nombre o fecha..." />
-        <button id="searchBtn">BUSCAR</button>
-      </div>
-      <label class="control-title" style="margin-top:12px;">FILTRAR POR FECHA</label>
+      <input id="searchInput" placeholder="Buscar por nombre..." />
+      <button id="searchBtn">BUSCAR</button>
       <input id="dateFilter" type="date" />
-      <div class="small-note">Selecciona una fecha para ver el historial correspondiente.</div>
-
       <div class="status-box">
-        <div><strong>Última actualización:</strong> <span id="lastUpdate">—</span></div>
-        <div><strong>Lat:</strong> <span id="lastLat">—</span></div>
-        <div><strong>Lng:</strong> <span id="lastLng">—</span></div>
+        <div>Última actualización: <span id="lastUpdate">—</span></div>
+        <div>Lat: <span id="lastLat">—</span></div>
+        <div>Lng: <span id="lastLng">—</span></div>
       </div>
     </aside>
 
@@ -61,14 +51,12 @@
       <textarea id="newDesc" placeholder="Descripción"></textarea>
       <input id="newPhoto" type="file" accept="image/*" />
       <button id="savePetBtn">Guardar mascota</button>
+      <div class="muted">Se creará un JSONBin por mascota (privado) y la foto se guarda en base64 dentro del bin.</div>
     </section>
-
   </main>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-
-  <script type="module" src="firebase-config.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>
