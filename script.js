@@ -1,12 +1,12 @@
-// script.js - Arquitectura JSONBin con Bin Maestro e Imgur Upload.
+// script.js - Arquitectura JSONBin con Base64, Bin Maestro y optimización Promise.all
 
-// 🚨 CONFIGURACIÓN DE SEGURIDAD Y SERVICIOS 🚨
-const JSONBIN_MASTER_KEY = "$2a$10$47T9xhBr26hDgtu1jHZvaelzxRaNGjjmJn2w44bksqkRj.q6OvR2W"; 
+// 🚨 CONFIGURACIÓN REQUERIDA 🚨
+// 1. REEMPLAZA CON TU Access Key de JSONBin
+const JSONBIN_MASTER_KEY = "$2a$10$.4D97bG7TmCMHK2IxDIbAekq00vrpkCEmQafbQ8MaJWxBcj8KQ9Le"; 
 const JSONBIN_BASE = "https://api.jsonbin.io/v3/b";
-const MASTER_BIN_ID = "6910195c43b1c97be9a1d645"; // Bin con un arreglo de IDs: ["id1", "id2", ...]
 
-const IMGUR_CLIENT_ID = "jcmracing"; 
-const IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image";
+// 2. REEMPLAZA CON EL ID DE TU BIN MAESTRO (creado con { "pet_ids": [] })
+const MASTER_BIN_ID = "6910195c43b1c97be9a1d645"; 
 
 const THINGSPEAK_CHANNEL = 3146056;
 const POLL_MS = 3000; // 3 segundos para una actualización más rápida
@@ -32,32 +32,23 @@ const newDesc = document.getElementById('newDesc');
 const newPhoto = document.getElementById('newPhoto');
 const savePetBtn = document.getElementById('savePetBtn');
 
-let pets = []; // {binId, nombre, descripcion, foto, visits}
+let pets = []; // {binId, nombre, descripcion, foto (Base64), visits}
 let markers = [];
 let lastLocation = null;
 
-// --- Funciones de Utilidad (JSONBin y Imgur) ---
+// --- Funciones de Utilidad (JSONBin) ---
 
-async function uploadToImgur(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    
-    const res = await fetch(IMGUR_UPLOAD_URL, {
-        method: 'POST',
-        headers: { 'Authorization': `Client-ID ${IMGUR_CLIENT_ID}` },
-        body: formData
-    });
-
-    if (!res.ok) throw new Error('Fallo al subir a Imgur: ' + res.statusText);
-    const json = await res.json();
-    if (!json.success || !json.data.link) throw new Error('Respuesta de Imgur inválida.');
-    return json.data.link;
-}
-
-async function createPetBin(name, desc, photoUrl) {
-  // Guarda solo la URL de Imgur, NO Base64
-  const payload = { meta: { nombre: name, descripcion: desc }, foto: photoUrl, visits: [] }; 
-  const res = await fetch(JSONBIN_BASE, { method:'POST', headers: { 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY }, body: JSON.stringify({ data: payload, private: true }) });
+// Función modificada para guardar la cadena Base64
+async function createPetBin(name, desc, base64Data) { 
+  const payload = { meta: { nombre: name, descripcion: desc }, foto: base64Data, visits: [] }; 
+  const res = await fetch(JSONBIN_BASE, { 
+    method:'POST', 
+    headers: { 
+        'Content-Type':'application/json', 
+        'X-Master-Key': JSONBIN_MASTER_KEY 
+    }, 
+    body: JSON.stringify({ data: payload, private: true }) 
+  });
   if(!res.ok) throw new Error('Create bin failed: ' + res.status);
   const j = await res.json();
   const id = j.metadata && j.metadata.id ? j.metadata.id : (j.record && j.record.id ? j.record.id : null);
@@ -69,7 +60,8 @@ async function readBin(binId) {
   const res = await fetch(url, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
   if(!res.ok) return null;
   const j = await res.json();
-  return j.record ? j.record : j;
+  // Devuelve el objeto record completo (Bin Maestro: { pet_ids: [] } o Bin Mascota: { meta: {}, foto: "", visits: [] })
+  return j.record ? j.record : j; 
 }
 
 async function updateBin(binId, data) {
@@ -78,56 +70,63 @@ async function updateBin(binId, data) {
   return res.ok;
 }
 
-// --- Lógica de Creación de Mascotas ---
+// --- Lógica de Creación de Mascotas (Usa FileReader) ---
 
 savePetBtn.addEventListener('click', async ()=>{
-  const name = newName.value.trim();
-  const desc = newDesc.value.trim();
-  const file = newPhoto.files[0];
+    const name = newName.value.trim();
+    const desc = newDesc.value.trim();
+    const file = newPhoto.files[0];
 
-  if(!name || !file){ alert('Nombre y foto requeridos'); return; }
+    if(!name || !file){ 
+      alert('Nombre y foto requeridos'); 
+      return; 
+    }
 
-  // 1. Subir la imagen a Imgur y obtener la URL
-  let photoUrl = '';
-  try {
-    savePetBtn.textContent = "Subiendo foto a Imgur...";
-    photoUrl = await uploadToImgur(file);
-    savePetBtn.textContent = "Guardando datos...";
-  } catch(err) {
-    console.error(err); 
-    alert('Error subiendo foto a Imgur: ' + err.message); 
-    savePetBtn.textContent = "Guardar mascota";
-    return;
-  }
-  
-  // 2. Crear el Bin individual de la Mascota
-  let binId;
-  try{
-    binId = await createPetBin(name, desc, photoUrl); 
-  }catch(err){ 
-    console.error(err); 
-    alert('Error creando Bin de mascota: ' + err.message); 
-    savePetBtn.textContent = "Guardar mascota";
-    return;
-  }
+    // 1. Lector de archivos para convertir la foto a Base64
+    const reader = new FileReader();
 
-  // 3. Añadir el nuevo Bin ID al Bin Maestro
-  try{
-    const masterList = await readBin(MASTER_BIN_ID) || [];
-    masterData.pet_ids.push(binId);
-    await updateBin(MASTER_BIN_ID, masterData);
-  } catch(err) {
-     console.error("Error al actualizar Bin Maestro. La mascota fue creada pero podría no aparecer:", err);
-     alert("Mascota creada, pero no se pudo registrar en la lista principal. Revisar Bin Maestro.");
-  }
-  
-  // 4. Actualizar la UI
-  pets.push({ binId: binId, nombre: name, descripcion: desc, foto: photoUrl, visits: [] });
-  localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({ binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto }))));
-  renderPetSelector();
-  newName.value=''; newDesc.value=''; newPhoto.value='';
-  alert('Mascota creada. Bin ID: ' + binId);
-  savePetBtn.textContent = "Guardar mascota";
+    reader.onload = async (e) => {
+        const base64Data = e.target.result; // <-- Foto en Base64
+        savePetBtn.textContent = "Guardando datos...";
+
+        // 2. Crear el Bin individual de la Mascota
+        let binId;
+        try{
+            binId = await createPetBin(name, desc, base64Data);
+        }catch(err){ 
+            console.error(err); 
+            alert('Error creando Bin de mascota: ' + err.message); 
+            savePetBtn.textContent = "Guardar mascota";
+            return;
+        }
+
+        // 3. Añadir el nuevo Bin ID al Bin Maestro ({ pet_ids: [] })
+        try{
+            const masterData = await readBin(MASTER_BIN_ID) || { pet_ids: [] }; 
+            if (!Array.isArray(masterData.pet_ids)) { masterData.pet_ids = []; } // Protección
+            masterData.pet_ids.push(binId);
+            await updateBin(MASTER_BIN_ID, masterData);
+        } catch(err) {
+            console.error("Error al actualizar Bin Maestro. La mascota fue creada pero podría no aparecer:", err);
+            alert("Mascota creada, pero no se pudo registrar en la lista principal. Revisar Bin Maestro.");
+        }
+        
+        // 4. Actualizar la UI
+        pets.push({ binId: binId, nombre: name, descripcion: desc, foto: base64Data, visits: [] });
+        localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({ binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto }))));
+        renderPetSelector();
+        newName.value=''; newDesc.value=''; newPhoto.value='';
+        alert('Mascota creada. Bin ID: ' + binId);
+        savePetBtn.textContent = "Guardar mascota";
+    };
+
+    reader.onerror = (e) => {
+        alert("Error al leer el archivo de la imagen.");
+        savePetBtn.textContent = "Guardar mascota";
+    };
+
+    reader.readAsDataURL(file); // Inicia la lectura del archivo
+    savePetBtn.textContent = "Leyendo archivo...";
 });
 
 // --- Lógica de Carga y Renderización ---
@@ -144,16 +143,20 @@ function renderPetSelector(){
   if(pets.length>0) selectPet(pets[0].binId);
 }
 
+// Función modificada para leer el Bin Maestro
 async function loadAllBins(){
-  // Intenta cargar la lista de Bin IDs del Bin Maestro
-  const const masterData = await readBin(MASTER_BIN_ID); 
-  if(!masterData || const masterList = masterData.pet_ids;){
-    console.log("No hay IDs en el Bin Maestro.");
+  const masterData = await readBin(MASTER_BIN_ID); 
+  
+  // Asegurarse de que el Bin Maestro tenga la estructura { pet_ids: [] }
+  if(!masterData || !masterData.pet_ids || masterData.pet_ids.length === 0){
+    console.log("No hay IDs en el Bin Maestro o la estructura es incorrecta.");
     renderPetSelector();
     return;
   }
   
-  // Leer cada Bin individualmente (concurrente)
+  const masterList = masterData.pet_ids;
+  
+  // Leer cada Bin individualmente (concurrente con Promise.all)
   const petPromises = masterList.map(async binId => {
     const rec = await readBin(binId);
     if(rec){
@@ -161,7 +164,7 @@ async function loadAllBins(){
         binId: binId, 
         nombre: rec.meta.nombre, 
         descripcion: rec.meta.descripcion, 
-        foto: rec.foto, 
+        foto: rec.foto, // Base64
         visits: rec.visits || [] 
       };
     }
@@ -181,14 +184,13 @@ async function loadAllBins(){
 async function selectPet(binId){
   let p = pets.find(x=>x.binId===binId);
   if(!p){
-    // Este caso solo ocurriría si el loadAllBins falló o si se intenta leer un bin no listado
+    // Caso de respaldo si el bin no estaba en la lista local
     const rec = await readBin(binId);
     if(!rec) return;
     p = { binId: binId, nombre: rec.meta.nombre, descripcion: rec.meta.descripcion, foto: rec.foto, visits: rec.visits || [] };
-    // No añadimos al array 'pets' global para no duplicar si loadAllBins fue parcial. Solo lo mostramos.
   }
   petNameEl.textContent = p.nombre;
-  petPhotoEl.src = p.foto;
+  petPhotoEl.src = p.foto; // Muestra la Base64
   petDescEl.textContent = p.descripcion || '';
   renderHistory(p.visits || []);
 }
@@ -206,7 +208,7 @@ function renderHistory(arr){
   });
 }
 
-// --- Lógica de Polling ThingSpeak (Optimizada) ---
+// --- Lógica de Polling ThingSpeak (Optimizada con Promise.all) ---
 
 async function pollThingSpeak(){
   try{
@@ -225,13 +227,13 @@ async function pollThingSpeak(){
     lastLocation = {lat, lng};
 
     markers.forEach(m=>map.removeLayer(m)); markers = [];
-    pets.forEach(p=>{ const mk = L.marker([lat, lng]).addTo(map).bindPopup(`<img src="${p.foto}" width="80"><br><b>${p.nombre}</b><br>${p.descripcion||''}`); markers.push(mk); });
+    pets.forEach(p=>{ const mk = L.marker([lat, lng]).addTo(map).bindPopup(`<img src=\"${p.foto}\" width=\"80\"><br><b>${p.nombre}</b><br>${p.descripcion||''}`); markers.push(mk); });
     map.setView([lat, lng]);
 
     const inside = turf.booleanPointInPolygon(turf.point([lng, lat]), turf.polygon([[ [-89.2032,13.7233],[-89.1994,13.7224],[-89.1998,13.7195],[-89.2003,13.7165],[-89.2060,13.7152],[-89.2055,13.7192],[-89.2032,13.7233] ]]));
     if(!inside){ const n = document.createElement('div'); n.className='entry'; n.innerHTML=`<strong style="color:var(--danger)">ALERTA: Fuera del campus</strong> — ${new Date().toLocaleString()} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`; historyList.prepend(n); }
 
-    // BLOQUE OPTIMIZADO CON PROMISE.ALL
+    // BLOQUE OPTIMIZADO CON PROMISE.ALL (para actualizar cada 3 segundos)
     if(changed && pets.length > 0){
         const updatePromises = pets.map(async (p) => {
             try {
@@ -256,7 +258,7 @@ async function pollThingSpeak(){
         await Promise.all(updatePromises); 
         
         localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({ binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto }))));
-        const sel = pets[0]; 
+        const sel = pets.find(p => p.binId === petSelector.querySelector('.active')?.dataset.binid) || pets[0];
         if(sel) renderHistory(sel.visits || []);
     }
     // FIN DEL BLOQUE OPTIMIZADO
