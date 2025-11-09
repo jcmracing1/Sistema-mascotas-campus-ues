@@ -1,5 +1,5 @@
 // public/script.js - frontend for Mascotas UES (connects to backend API)
-const API_BASE = https://sistema-mascotas-campus-ues.onrender.com/; // if served by same server; otherwise replace with your backend URL
+const API_BASE = https://sistema-mascotas-campus-ues.onrender.com/api; // if served by same server; otherwise replace with your backend URL
 
 // map init
 const map = L.map('map').setView([13.719, -89.203], 15);
