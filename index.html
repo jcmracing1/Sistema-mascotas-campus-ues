@@ -3,62 +3,32 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Mascotas UES - Firebase</title>
+  <title>Mascotas UES</title>
   <link rel="stylesheet" href="style.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
 <body>
   <header><h1>SISTEMA DE UBICACIÓN DE MASCOTAS - UES</h1></header>
-
   <main class="page">
-    <div class="pet-selector" id="petSelector"></div>
-
-    <section class="photo-card">
-      <h2 id="petName">Nombre de Mascota</h2>
-      <div class="photo-box"><img id="petPhoto" src="img/placeholder_pet.png" /></div>
-      <small>fotografía</small>
-    </section>
-
-    <section class="desc-card">
-      <h3>DESCRIPCIÓN</h3>
-      <p id="petDesc">Descripción de la mascota.</p>
-    </section>
-
-    <aside class="controls">
-      <input id="searchInput" placeholder="Buscar por nombre..." />
-      <button id="searchBtn">BUSCAR</button>
-      <input id="dateFilter" type="date" />
-      <div class="status-box">
-        <div>Última actualización: <span id="lastUpdate">—</span></div>
-        <div>Lat: <span id="lastLat">—</span></div>
-        <div>Lng: <span id="lastLng">—</span></div>
-      </div>
-    </aside>
-
-    <section class="map-card">
-      <h4>UBICACIÓN ACTUAL</h4>
-      <div id="map"></div>
-    </section>
-
-    <aside class="history">
-      <h4>HISTORIAL DE VISITAS</h4>
-      <div id="historyList"></div>
-    </aside>
-
-    <section class="add-pet">
-      <h3>Agregar Mascota</h3>
-      <input id="newName" placeholder="Nombre" />
-      <textarea id="newDesc" placeholder="Descripción"></textarea>
-      <input id="newPhoto" type="file" accept="image/*" /> 
-      <button id="savePetBtn">Guardar mascota</button>
-      <div class="muted">La foto se subirá a Imgur y los datos a Firestore.</div>
-    </section>
+    <div id="petSelector" class="pet-selector"></div>
+    <div class="left">
+      <div class="photo-box"><img id="photo" src="img/placeholder_pet.png" /></div>
+      <h2 id="petName">Seleccione una mascota</h2>
+      <p id="petDesc"></p>
+      <form id="addPetForm">
+        <input id="name" name="name" placeholder="Nombre" required/>
+        <textarea id="description" name="description" placeholder="Descripción"></textarea>
+        <input type="file" id="photoFile" name="photo" accept="image/*" required/>
+        <button type="submit">Guardar mascota</button>
+      </form>
+    </div>
+    <div class="right">
+      <div id="map" style="height:420px"></div>
+      <div id="history"></div>
+    </div>
   </main>
-
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-  
-  
-  <script type="module" src="script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
