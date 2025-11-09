@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Sistema de ubicación de mascotas - UES</title>
   <link rel="stylesheet" href="style.css"/>
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
 <body>
@@ -14,10 +13,8 @@
   </header>
 
   <main class="page">
-    <!-- Pet selector at top -->
     <div class="pet-selector" id="petSelector"></div>
 
-    <!-- Top left: Photo and title -->
     <section class="photo-card">
       <h2 id="petName">Nombre de Mascota</h2>
       <div class="photo-box">
@@ -26,13 +23,11 @@
       <small class="caption">fotografía</small>
     </section>
 
-    <!-- Top center: Description -->
     <section class="desc-card">
       <h3>DESCRIPCIÓN</h3>
       <p id="petDesc">Aquí aparecerá la descripción de la mascota seleccionada.</p>
     </section>
 
-    <!-- Top right: Search & Calendar -->
     <aside class="controls">
       <label class="control-title">BUSQUEDA DE MASCOTA</label>
       <div class="search">
@@ -50,19 +45,16 @@
       </div>
     </aside>
 
-    <!-- Bottom left: Map -->
     <section class="map-card">
       <h4>UBICACIÓN ACTUAL</h4>
       <div id="map"></div>
     </section>
 
-    <!-- Bottom right: History -->
     <aside class="history">
       <h4>HISTORIAL DE VISITAS</h4>
       <div id="historyList"></div>
     </aside>
 
-    <!-- Hidden: Add pet form (modal-style in page) -->
     <section class="add-pet">
       <h3>Agregar Mascota</h3>
       <input id="newName" placeholder="Nombre" />
@@ -73,11 +65,9 @@
 
   </main>
 
-  <!-- Libraries -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
-  <!-- Firebase and app scripts -->
   <script type="module" src="firebase-config.js"></script>
   <script type="module" src="script.js"></script>
 </body>
