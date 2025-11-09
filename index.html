@@ -175,7 +175,8 @@ async function updateAll(){
     const results = parseInt(document.getElementById('selectResults').value || 100);
     const data = await fetchFeeds(results);
     if(!data || !data.feeds) return;
-    resetPetData();
+
+    if(!live) resetPetData(); // solo borra todo si no estamos en modo live
 
     // maps petKey -> points
     const assigned = {};
@@ -366,11 +367,14 @@ document.getElementById('btnCenterCampus').addEventListener('click', ()=>{
   updateAll();
 
   // set interval based on refreshMs input
-  function schedule(){
-    const ms = parseInt(document.getElementById('refreshMs').value || 20000);
-    if(refreshInterval) clearInterval(refreshInterval);
-    refreshInterval = setInterval(updateAll, ms);
-  }
+function schedule(){
+  const ms = parseInt(document.getElementById('refreshMs').value || 5000); // 5 segundos por defecto
+  if(refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = setInterval(async ()=>{
+    await updateAll(true); // modo "live"
+  }, ms);
+}
+  
   schedule();
   document.getElementById('refreshMs').addEventListener('change', schedule);
   document.getElementById('selectResults').addEventListener('change', updateAll);
