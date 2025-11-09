@@ -25,7 +25,6 @@
       font-family:"Nunito",sans-serif;
       color:#222;
     }
-
     header {
       text-align:center;
       padding:20px;
@@ -33,7 +32,6 @@
       font-size:22px;
       letter-spacing:1px;
     }
-
     .pet-list {
       display:flex;
       gap:14px;
@@ -62,7 +60,6 @@
       margin:6px;
       font-size:15px;
     }
-
     .container {
       display:grid;
       grid-template-columns: 1fr 1fr 320px;
@@ -71,24 +68,20 @@
       margin:0 auto;
       padding:10px;
     }
-
     .photo-card, .desc-card, .controls, .map-card, .history {
       background:var(--card);
       padding:14px;
       border-radius:var(--radius);
       box-shadow:var(--shadow);
     }
-
     .photo-card img {
       width:100%;
       height:320px;
       object-fit:cover;
       border-radius:10px;
     }
-
     .map-card { grid-column: 1 / span 2; }
     #map { width:100%; height:430px; border-radius:10px; }
-
     .history { overflow:auto; height:460px; }
     .entry {
       padding:8px;
@@ -97,15 +90,45 @@
       margin-bottom:6px;
       cursor:pointer;
     }
-
-    .out-alert {
-      color: red;
-      font-weight: bold;
+    .out-alert { color:red; font-weight:bold; }
+    #addPetBtn {
+      display:block;
+      margin:20px auto;
+      padding:10px 20px;
+      background:var(--accent);
+      color:#fff;
+      border:none;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:bold;
     }
-
-    @media(max-width:1024px){
-      .container{ grid-template-columns:1fr; }
+    #addForm {
+      display:none;
+      background:var(--card);
+      box-shadow:var(--shadow);
+      border-radius:var(--radius);
+      max-width:400px;
+      margin:20px auto;
+      padding:16px;
     }
+    #addForm input, #addForm textarea {
+      width:100%;
+      margin-bottom:10px;
+      padding:8px;
+      border-radius:8px;
+      border:1px solid #ccc;
+      font-family:inherit;
+    }
+    #addForm button {
+      background:var(--accent);
+      color:#fff;
+      border:none;
+      padding:10px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:bold;
+    }
+    @media(max-width:1024px){ .container{ grid-template-columns:1fr; } }
   </style>
 </head>
 
@@ -145,8 +168,18 @@
     </aside>
   </div>
 
+  <!-- Botón y formulario para agregar mascota -->
+  <button id="addPetBtn">➕ Agregar Mascota</button>
+
+  <div id="addForm">
+    <h3>Nueva Mascota</h3>
+    <input type="text" id="newName" placeholder="Nombre de la mascota" required>
+    <textarea id="newDesc" placeholder="Descripción"></textarea>
+    <input type="file" id="newPhoto" accept="image/*">
+    <button id="savePet">Guardar</button>
+  </div>
+
 <script>
-/* ---------------- Mascotas ---------------- */
 const pets = [
   { name:"Nessa", desc:"Perrita pitbull, le gusta correr.", photo:"img/nessa.png", channel:"3146056", api:"GSRK8SFFHTSPZALK" },
   { name:"Cleo", desc:"Perrita bóxer, le gusta pasear cerca de cafetería.", photo:"img/cleo.jpg", channel:"3146056", api:"GSRK8SFFHTSPZALK" },
@@ -162,38 +195,28 @@ pets.forEach((p,i)=>{
   petList.appendChild(el);
 });
 
-/* ---------------- Mapa ---------------- */
 const map=L.map('map').setView([13.718, -89.202], 16);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap'}).addTo(map);
-
 let marker=null;
 let polyline=L.polyline([], {color:'#ff6b6b',weight:4}).addTo(map);
 
-/* ---------------- Polígono del campus ---------------- */
 const campusCoords = [
-  [13.7233, -89.2032], // Esquina norte-oeste
-  [13.7224, -89.1994], // Norte-este
-  [13.7195, -89.1998], // Punto intermedio este
-  [13.7165, -89.2003], // Sur-este
-  [13.7152, -89.2060], // Sur-oeste
-  [13.7192, -89.2055]  // Punto intermedio oeste
+  [13.7233, -89.2032],[13.7224, -89.1994],[13.7165, -89.2003],
+  [13.7152, -89.2060],[13.7190, -89.2075],[13.7220, -89.2050]
 ];
 const campusPolygon = L.polygon(campusCoords, {color:'green', fillOpacity:0.1}).addTo(map);
 
-/* ---------------- Verificación dentro del polígono ---------------- */
 function isInsidePolygon(lat, lng, polygonCoords) {
   let inside = false;
   for (let i = 0, j = polygonCoords.length - 1; i < polygonCoords.length; j = i++) {
     const xi = polygonCoords[i][1], yi = polygonCoords[i][0];
     const xj = polygonCoords[j][1], yj = polygonCoords[j][0];
-    const intersect = ((yi > lat) !== (yj > lat)) &&
-      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    const intersect = ((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
   return inside;
 }
 
-/* ---------------- Cargar mascota ---------------- */
 async function loadPet(index){
   const pet=pets[index];
   document.getElementById("petName").textContent=pet.name;
@@ -207,10 +230,8 @@ async function loadPet(index){
   if(!feeds||feeds.length===0)return;
 
   const coords=feeds.filter(f=>f.field1&&f.field2).map(f=>({
-    lat:parseFloat(f.field1),
-    lng:parseFloat(f.field2),
-    alt:f.field3?parseFloat(f.field3):0,
-    time:f.created_at
+    lat:parseFloat(f.field1), lng:parseFloat(f.field2),
+    alt:f.field3?parseFloat(f.field3):0, time:f.created_at
   }));
 
   const last=coords[coords.length-1];
@@ -226,7 +247,6 @@ async function loadPet(index){
   polyline.setLatLngs(coords.map(c=>[c.lat,c.lng]));
   map.fitBounds(polyline.getBounds().pad(0.2));
 
-  // Estado dentro/fuera del campus
   const inside=isInsidePolygon(last.lat,last.lng,campusCoords);
   const statusEl=document.getElementById("campusStatus");
   if(inside){
@@ -237,7 +257,6 @@ async function loadPet(index){
     statusEl.classList.add("out-alert");
   }
 
-  // Historial
   const list=document.getElementById("historyList");
   list.innerHTML='';
   coords.reverse().forEach(c=>{
@@ -249,8 +268,48 @@ async function loadPet(index){
   });
 }
 
-/* ---------------- Cargar primera mascota ---------------- */
 loadPet(0);
+
+/* --- Formulario agregar mascota --- */
+const addBtn=document.getElementById("addPetBtn");
+const form=document.getElementById("addForm");
+const saveBtn=document.getElementById("savePet");
+
+addBtn.onclick=()=> form.style.display = form.style.display==="block" ? "none" : "block";
+
+saveBtn.onclick=()=>{
+  const name=document.getElementById("newName").value.trim();
+  const desc=document.getElementById("newDesc").value.trim();
+  const file=document.getElementById("newPhoto").files[0];
+  if(!name){ alert("Ingrese un nombre"); return; }
+
+  if(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const newPet={ name, desc, photo:reader.result, channel:"3146056", api:"GSRK8SFFHTSPZALK" };
+      pets.push(newPet);
+      const el=document.createElement("div");
+      el.className="pet-card";
+      el.innerHTML=`<img src="${reader.result}" alt="${name}"><h3>${name}</h3>`;
+      el.onclick=()=>loadPet(pets.length-1);
+      petList.appendChild(el);
+      form.style.display="none";
+      document.getElementById("newName").value="";
+      document.getElementById("newDesc").value="";
+      document.getElementById("newPhoto").value="";
+    };
+    reader.readAsDataURL(file);
+  } else {
+    const newPet={ name, desc, photo:"img/default.png", channel:"3146056", api:"GSRK8SFFHTSPZALK" };
+    pets.push(newPet);
+    const el=document.createElement("div");
+    el.className="pet-card";
+    el.innerHTML=`<img src="img/default.png" alt="${name}"><h3>${name}</h3>`;
+    el.onclick=()=>loadPet(pets.length-1);
+    petList.appendChild(el);
+    form.style.display="none";
+  }
+};
 </script>
 </body>
 </html>
