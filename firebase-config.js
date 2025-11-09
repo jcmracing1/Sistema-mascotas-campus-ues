@@ -7,12 +7,20 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebas
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROJECT_ID.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROJECT_ID.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyDtMppJXy8EX2IBS8r5hiyHuH033xAqKHI",
+
+  authDomain: "mascotas-ues.firebaseapp.com",
+
+  projectId: "mascotas-ues",
+
+  storageBucket: "mascotas-ues.firebasestorage.app",
+
+  messagingSenderId: "1078964321035",
+
+  appId: "1:1078964321035:web:16ae04b6447a234b0e000e",
+
+  measurementId: "G-8L9D3CHBM2"
+
 };
 
 export const app = initializeApp(firebaseConfig);
