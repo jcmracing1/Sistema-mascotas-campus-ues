@@ -1,24 +1,19 @@
-# Mascotas UES - Tracker (GitHub Pages)
+# Monitoreo de Mascotas - UES 🐾
 
-Proyecto listo para subir a GitHub Pages. Incluye:
-- Interfaz web (index.html)
-- Conexión a Firebase Firestore + Storage
-- Lectura de coordenadas desde ThingSpeak
-- Detección si la mascota está fuera del campus UES (polígono de 6 vértices)
-- Subida de foto por mascota y persistencia en Firestore
+Este proyecto muestra la ubicación de mascotas en tiempo real usando un canal de **ThingSpeak** y **Firebase** para almacenar la información de cada mascota.
 
-## Pasos para usar
+## 🚀 Características
+- Mapa en tiempo real con Leaflet.js
+- Lectura de coordenadas GPS desde ThingSpeak (canal 3146056)
+- Polígono de validación del campus UES
+- Registro de mascotas con nombre, descripción y fotografía (Firebase Firestore + Storage)
+- 100% compatible con GitHub Pages
 
-1. Crear un proyecto en Firebase (Console) y activar:
-   - Firestore Database
-   - Storage
-2. Crear una app web en Firebase y copiar la configuración.
-3. Reemplazar `firebase-config.js` con tu configuración real.
-4. (Opcional) Configurar EmailJS e insertar `service_id` y `template_id` en script.js para notificaciones por correo.
-5. Subir todo el contenido del directorio a un repositorio GitHub.
-6. Activar GitHub Pages (Settings → Pages → branch `main` → root).
-7. Abrir la URL que te provee GitHub Pages.
+## ⚙️ Configuración
+1. Crea un proyecto en [Firebase](https://firebase.google.com).
+2. Copia tu configuración en `firebase-config.js`.
+3. Sube el contenido del proyecto a GitHub y activa **GitHub Pages**.
+4. Asegúrate de tener el canal ThingSpeak 3146056 con `field1 = latitud` y `field2 = longitud`.
 
-## Nota
-- ThingSpeak: cada ESP32 debe enviar `field1=lat` y `field2=lng` (opcional `field3=alt`).
-- Para asignar datos a mascotas automáticamente puedes enviar `field4` con el nombre de la mascota.
+---
+Hecho con ❤️ para la Universidad de El Salvador.
