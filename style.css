@@ -1,64 +1,21 @@
-body {
-  font-family: Arial, sans-serif;
-  background: #f7f7f7;
-  margin: 0;
-  padding: 0;
+/* Simple responsive layout */
+:root{
+  --bg:#faf9f7; --card:#fff; --accent:#2b7cff; --danger:#ff4d4f;
+  --radius:12px; --shadow:0 6px 18px rgba(0,0,0,0.08);
+  font-family: 'Nunito', Arial, sans-serif;
 }
-
-header {
-  background: #004d40;
-  color: white;
-  padding: 15px;
-  text-align: center;
-}
-
-#map {
-  height: 400px;
-  width: 90%;
-  margin: 10px auto;
-  border: 2px solid #004d40;
-  border-radius: 10px;
-}
-
-section {
-  text-align: center;
-  margin: 10px;
-}
-
-button {
-  background: #00796b;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #004d40;
-}
-
-
-
-.petPhoto {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 50%;
-  margin: 5px;
-  vertical-align: middle;
-}
-
-#petsUl {
-  list-style: none;
-  padding: 0;
-}
-
-#petsUl li {
-  background: #fff;
-  margin: 10px;
-  padding: 10px;
-  border-radius: 10px;
-  box-shadow: 0 0 5px rgba(0,0,0,0.1);
-  text-align: left;
-}
+body{ margin:0; background:var(--bg); color:#222; }
+header{ background:#004d40; color:#fff; padding:14px; text-align:center; font-weight:800; }
+.wrap{ max-width:1200px; margin:18px auto; display:grid; grid-template-columns: 360px 1fr; gap:16px; padding:0 12px; }
+.left{ display:flex; flex-direction:column; gap:12px; }
+.card{ background:var(--card); padding:12px; border-radius:var(--radius); box-shadow:var(--shadow); }
+.add-card input, .add-card textarea{ width:100%; padding:8px; margin:6px 0; border-radius:8px; border:1px solid #e6e6e6; }
+.btn{ background:var(--accent); color:#fff; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-weight:700; }
+.pet-list{ display:flex; flex-direction:column; gap:8px; }
+.pet-item{ display:flex; gap:10px; align-items:center; padding:8px; border-radius:8px; border:1px solid #f0f0f0; cursor:pointer; }
+.pet-item img{ width:64px; height:64px; object-fit:cover; border-radius:8px; }
+.map-card{ display:flex; flex-direction:column; gap:8px; }
+#map{ height:520px; border-radius:8px; }
+.history-card{ max-height:200px; overflow:auto; }
+.muted{ color:#777; font-size:13px; }
+@media (max-width:900px){ .wrap{ grid-template-columns: 1fr; } #map{ height:360px; } }

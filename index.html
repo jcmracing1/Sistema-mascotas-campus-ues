@@ -1,33 +1,54 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Seguimiento de Mascotas UES</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="script.js" defer></script>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Mascotas UES - Tracker</title>
+
+  <link rel="stylesheet" href="style.css" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Turf (point-in-polygon) -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <!-- EmailJS (optional) -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
   <header>
-    <h1>🐾 Seguimiento de Mascotas - UES</h1>
+    <h1>🐾 Rastreo de Mascotas - UES</h1>
   </header>
 
-  <section id="addPet">
-    <h2>Agregar Mascota</h2>
-    <input id="petName" type="text" placeholder="Nombre de la mascota">
-    <input id="thingSpeakID" type="number" placeholder="ThingSpeak Channel ID">
-    <button id="addPetBtn">Guardar Mascota</button>
-  </section>
+  <main class="wrap">
+    <section class="left">
+      <div class="card add-card">
+        <h2>Agregar mascota</h2>
+        <input id="petName" placeholder="Nombre" />
+        <input id="thingSpeakID" placeholder="ThingSpeak Channel ID" />
+        <textarea id="petDesc" placeholder="Descripción (raza, notas...)"></textarea>
+        <input id="petPhoto" type="file" accept="image/*" />
+        <button id="addPetBtn" class="btn">Guardar mascota</button>
+        <p class="muted">Las fotos se suben a Firebase Storage.</p>
+      </div>
 
-  <section id="mapSection">
-    <div id="map"></div>
-  </section>
+      <div class="card list-card">
+        <h2>Mascotas registradas</h2>
+        <div id="petList" class="pet-list"></div>
+      </div>
+    </section>
 
-  <section id="petList">
-    <h2>Mascotas Registradas</h2>
-    <ul id="petsUl"></ul>
-  </section>
+    <section class="right">
+      <div class="card map-card">
+        <h2>Mapa</h2>
+        <div id="map"></div>
+      </div>
+      <div class="card history-card">
+        <h3>Historial / Notificaciones</h3>
+        <div id="historyList"></div>
+      </div>
+    </section>
+  </main>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
