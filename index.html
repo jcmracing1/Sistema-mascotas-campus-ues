@@ -3,30 +3,68 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Mascotas UES</title>
+  <title>Mascotas UES (Local)</title>
   <link rel="stylesheet" href="style.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
 <body>
-  <header><h1>SISTEMA DE UBICACIÓN DE MASCOTAS - UES</h1></header>
+  <header>
+    <h1>MASCOTAS UES — LOCAL (GitHub Pages)</h1>
+  </header>
+
   <main class="page">
-    <div id="petSelector" class="pet-selector"></div>
-    <div class="left">
-      <div class="photo-box"><img id="photo" src="img/placeholder_pet.png" /></div>
-      <h2 id="petName">Seleccione una mascota</h2>
-      <p id="petDesc"></p>
-      <form id="addPetForm">
-        <input id="name" name="name" placeholder="Nombre" required/>
-        <textarea id="description" name="description" placeholder="Descripción"></textarea>
-        <input type="file" id="photoFile" name="photo" accept="image/*" required/>
-        <button type="submit">Guardar mascota</button>
-      </form>
-    </div>
-    <div class="right">
-      <div id="map" style="height:420px"></div>
-      <div id="history"></div>
-    </div>
+    <div class="pet-selector" id="petSelector"></div>
+
+    <section class="photo-card">
+      <h2 id="petName">Nombre de mascota</h2>
+      <div class="photo-box">
+        <img id="petPhoto" src="img/placeholder.png" alt="Foto mascota"/>
+      </div>
+      <small class="caption">Fotografía</small>
+    </section>
+
+    <section class="desc-card">
+      <h3>DESCRIPCIÓN</h3>
+      <p id="petDesc">Selecciona una mascota para ver su descripción.</p>
+    </section>
+
+    <aside class="controls">
+      <label>BUSCAR MASCOTA</label>
+      <div class="search">
+        <input id="searchInput" placeholder="Buscar por nombre..." />
+        <button id="searchBtn">BUSCAR</button>
+      </div>
+      <label style="margin-top:12px;">FILTRAR POR FECHA</label>
+      <input id="dateFilter" type="date" />
+      <div class="status-box">
+        <div><strong>Última actualización:</strong> <span id="lastUpdate">—</span></div>
+        <div><strong>Lat:</strong> <span id="lastLat">—</span></div>
+        <div><strong>Lng:</strong> <span id="lastLng">—</span></div>
+        <div><strong>Estado:</strong> <span id="lastStatus">—</span></div>
+      </div>
+    </aside>
+
+    <section class="map-card">
+      <h4>UBICACIÓN ACTUAL</h4>
+      <div id="map"></div>
+    </section>
+
+    <aside class="history">
+      <h4>HISTORIAL DE VISITAS</h4>
+      <div id="historyList"></div>
+    </aside>
+
+    <section class="add-pet">
+      <h3>Agregar Mascota</h3>
+      <input id="newName" placeholder="Nombre" />
+      <textarea id="newDesc" placeholder="Descripción"></textarea>
+      <input id="newPhoto" type="file" accept="image/*" />
+      <button id="savePetBtn">Guardar mascota</button>
+      <div class="muted">Los datos se guardan en el navegador (localStorage).</div>
+    </section>
+
   </main>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="script.js"></script>
