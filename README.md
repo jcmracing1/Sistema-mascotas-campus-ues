@@ -1,19 +1,16 @@
-# Monitoreo de Mascotas - UES 🐾
+Mascotas UES - Proyecto listo para GitHub Pages
 
-Este proyecto muestra la ubicación de mascotas en tiempo real usando un canal de **ThingSpeak** y **Firebase** para almacenar la información de cada mascota.
+Archivos principales:
+- index.html
+- style.css
+- firebase-config.js (already filled with the keys you provided)
+- script.js
 
-## 🚀 Características
-- Mapa en tiempo real con Leaflet.js
-- Lectura de coordenadas GPS desde ThingSpeak (canal 3146056)
-- Polígono de validación del campus UES
-- Registro de mascotas con nombre, descripción y fotografía (Firebase Firestore + Storage)
-- 100% compatible con GitHub Pages
+Instrucciones:
+1. En Firebase Console activa Firestore y Storage.
+2. Sube estos archivos a un repositorio GitHub y activa Pages (branch main).
+3. Abre la URL pública y prueba: agrega mascotas (nombre, descripción, foto).
+4. Asegúrate que el canal ThingSpeak 3146056 publique field1 (lat) and field2 (lng).
+5. The system will store each new location in the 'visitas' collection and show history.
 
-## ⚙️ Configuración
-1. Crea un proyecto en [Firebase](https://firebase.google.com).
-2. Copia tu configuración en `firebase-config.js`.
-3. Sube el contenido del proyecto a GitHub y activa **GitHub Pages**.
-4. Asegúrate de tener el canal ThingSpeak 3146056 con `field1 = latitud` y `field2 = longitud`.
-
----
-Hecho con ❤️ para la Universidad de El Salvador.
+Note: No email notifications (per your request).

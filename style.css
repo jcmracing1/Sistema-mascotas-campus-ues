@@ -1,50 +1,70 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  background: #f3f4f6;
+:root{
+  --bg:#fbfaf8;
+  --card:#fff;
+  --muted:#666;
+  --accent:#2b7cff;
+  --danger:#ff4d4f;
+  --radius:12px;
+  --shadow: 0 6px 18px rgba(0,0,0,0.08);
+  font-family: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+}
+body{ margin:0; background:var(--bg); color:#222; }
+header{ text-align:center; padding:18px 0; }
+header h1{ margin:0; font-weight:700; letter-spacing:1px; font-size:18px; color:#222; }
+
+.page{
+  max-width:1200px;
+  margin:10px auto 40px;
+  display:grid;
+  grid-template-columns: 1fr 1fr 320px;
+  grid-template-rows: auto auto 1fr;
+  gap:16px;
+  padding:0 12px;
 }
 
-header {
-  background: #006400;
-  color: white;
-  padding: 15px;
-  text-align: center;
+/* Photo card */
+.photo-card{
+  grid-column:1 / span 1;
+  background:var(--card); padding:14px; border-radius:var(--radius); box-shadow:var(--shadow);
 }
+.photo-card h2{ margin:6px 0 10px; font-size:34px; letter-spacing:1px; }
+.photo-box{ height:320px; background:#eee; border-radius:8px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.photo-box img{ width:100%; height:100%; object-fit:cover; }
 
-#map {
-  width: 100%;
-  height: 400px;          /* mapa más compacto */
-  border-radius: 12px;    /* esquinas redondeadas */
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-  margin-top: 10px;
-}
+/* Description */
+.desc-card{ grid-column:2 / span 1; background:var(--card); padding:16px; border-radius:var(--radius); box-shadow:var(--shadow); min-height:180px; }
+.desc-card h3{ margin-top:0; }
+.desc-card p{ color:var(--muted); line-height:1.5; }
 
-section {
-  margin: 10px auto;
-  width: 95%;
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  box-shadow: 0 0 5px rgba(0,0,0,0.1);
-}
+/* Controls */
+.controls{ grid-column:3 / span 1; background:var(--card); padding:12px; border-radius:var(--radius); box-shadow:var(--shadow); display:flex; flex-direction:column; gap:8px; }
+.search input{ width:100%; padding:10px; border-radius:8px; border:1px solid #eaeaea; }
+.search button{ margin-top:8px; padding:10px; border-radius:8px; border:none; background:var(--accent); color:white; font-weight:700; cursor:pointer; }
+.small-note{ font-size:12px; color:var(--muted); }
 
-.petPhoto {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 50%;
-  margin-right: 10px;
-  vertical-align: middle;
-}
+/* Map */
+.map-card{ grid-column:1 / span 2; background:var(--card); padding:12px; border-radius:var(--radius); box-shadow:var(--shadow); min-height:460px; }
+#map{ width:100%; height:420px; border-radius:10px; }
 
-#petsUl {
-  list-style: none;
-  padding: 0;
-}
+/* History */
+.history{ grid-column:3 / span 1; background:var(--card); padding:12px; border-radius:var(--radius); box-shadow:var(--shadow); min-height:460px; overflow:auto; }
+.history h4{ margin-top:0; }
+.entry{ padding:8px; border-radius:8px; border:1px solid #f0f0f0; margin-bottom:8px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.entry:hover{ box-shadow:0 8px 20px rgba(0,0,0,0.06); transform:translateY(-2px); }
 
-#petsUl li {
-  margin: 10px 0;
-  padding: 10px;
-  border-bottom: 1px solid #ddd;
+/* Add pet form */
+.add-pet{ grid-column:1 / span 3; background:transparent; padding:12px; display:flex; gap:8px; align-items:center; }
+.add-pet input, .add-pet textarea{ padding:8px; border-radius:8px; border:1px solid #eaeaea; }
+#savePetBtn{ padding:10px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; font-weight:700; cursor:pointer; }
+
+/* Pet selector */
+.pet-selector{ grid-column:1 / span 3; display:flex; gap:12px; justify-content:flex-start; padding:10px 12px; overflow-x:auto; }
+.pet-item{ display:flex; gap:12px; align-items:center; background:var(--card); padding:8px; border-radius:10px; box-shadow:var(--shadow); cursor:pointer; min-width:220px; }
+.pet-item img{ width:80px; height:80px; object-fit:cover; border-radius:8px; }
+
+/* Responsive */
+@media (max-width:1024px){
+  .page{ grid-template-columns: 1fr; grid-template-rows: auto; }
+  .photo-card, .desc-card, .controls, .map-card, .history { grid-column:auto; }
+  #map{ height:360px; }
 }
