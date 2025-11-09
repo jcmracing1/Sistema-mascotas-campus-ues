@@ -173,7 +173,7 @@ function resetPetData(){
 async function updateAll(){
   try{
     const results = parseInt(document.getElementById('selectResults').value || 100);
-    const data = await fetchFeeds(results);
+    const data = await fetchFeeds(200);
     if(!data || !data.feeds) return;
 
     if(!live) resetPetData(); // solo borra todo si no estamos en modo live
@@ -368,11 +368,9 @@ document.getElementById('btnCenterCampus').addEventListener('click', ()=>{
 
   // set interval based on refreshMs input
 function schedule(){
-  const ms = parseInt(document.getElementById('refreshMs').value || 5000); // 5 segundos por defecto
+ const ms = 5000; // 5 segundos
   if(refreshInterval) clearInterval(refreshInterval);
-  refreshInterval = setInterval(async ()=>{
-    await updateAll(true); // modo "live"
-  }, ms);
+  refreshInterval = setInterval(async ()=>{ await updateAll(true); }, ms);
 }
   
   schedule();
