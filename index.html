@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Mascotas UES - JSONBin</title>
+  <title>Mascotas UES - Firebase</title>
   <link rel="stylesheet" href="style.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 </head>
@@ -51,12 +51,41 @@
       <textarea id="newDesc" placeholder="Descripción"></textarea>
       <input id="newPhoto" type="file" accept="image/*" /> 
       <button id="savePetBtn">Guardar mascota</button>
-      <div class="muted">La foto se guarda en Base64 dentro del Bin (máx 3-4MB).</div>
+      <div class="muted">La foto se subirá a Imgur y los datos a Firestore.</div>
     </section>
   </main>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    // ⚠️ REEMPLAZA ESTE OBJETO CON TUS CREDENCIALES DE FIREBASE ⚠️
+    const firebaseConfig = {
+      apiKey: "AIzaSyDtMppJXy8EX2IBS8r5hiyHuH033xAqKHI",
+
+  authDomain: "mascotas-ues.firebaseapp.com",
+
+  projectId: "mascotas-ues",
+
+  storageBucket: "mascotas-ues.firebasestorage.app",
+
+  messagingSenderId: "1078964321035",
+
+  appId: "1:1078964321035:web:16ae04b6447a234b0e000e",
+
+  measurementId: "G-8L9D3CHBM2"
+
+    };
+
+    // Inicializa Firebase y hace las funciones necesarias globales
+    const app = initializeApp(firebaseConfig);
+    window.db = getFirestore(app);
+    window.db_functions = { collection, getDocs, addDoc };
+  </script>
+  
   <script type="module" src="script.js"></script>
 </body>
 </html>
