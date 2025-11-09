@@ -1,9 +1,18 @@
-// script.js - localStorage version with ThingSpeak polling (real-time-ish)
-const THINGSPEAK_CHANNEL = 3146056;
-const POLL_MS = 15000; // 15s (ThingSpeak free limit); adjust if needed
+// script.js - Multi-mascota tracker (ThingSpeak same channel)
+const CHANNEL_ID = "3146056";
+const READ_API_KEY = "GSRK8SFFHTSPZALK";
+const MAX_POINTS = 300;
+const REFRESH_MS = 5000;
 
-// Polygon (6 vertices)
-const campusPolygon = [
+// Define three pets (keys should match field4/field5 values sent to ThingSpeak)
+const PETS = [
+  { key: "nessa", name: "Nessa", photo: "img/nessa.jpg", desc: "Perrita pitbull.", color: "#ff6b6b", visible: true },
+  { key: "cleo", name: "Cleo", photo: "img/cleo.jpg", desc: "Perrita boxer.", color: "#4dabf7", visible: true },
+  { key: "doguie", name: "Doguie", photo: "img/doguie.jpg", desc: "Perrita french.", color: "#ffd166", visible: true }
+];
+
+// campus polygon (6 vertices provided previously)
+const CAMPUS = [
   [13.7233, -89.2032],
   [13.7224, -89.1994],
   [13.7195, -89.1998],
@@ -12,171 +21,197 @@ const campusPolygon = [
   [13.7192, -89.2055]
 ];
 
-// UI refs
+// map init
+const map = L.map('map').setView([13.719, -89.203], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const campusLayer = L.polygon(CAMPUS, { color:'#2b7cff', weight:2, fillOpacity:0.03 }).addTo(map);
+map.fitBounds(campusLayer.getBounds().pad(0.2));
+
+// state per-pet
+let pointsByPet = {}; // key -> [{lat,lng,alt,ts,entry_id},...]
+let polyByPet = {};    // key -> L.polyline
+let markerByPet = {};  // key -> L.circleMarker
+let lastEntryIdByPet = {}; // key -> last entry id recorded
+let allPoints = []; // for combined history (includes petKey)
+
+PETS.forEach(p => { pointsByPet[p.key]=[]; lastEntryIdByPet[p.key]=0; });
+
+// utils
+function fetchFeeds(results=MAX_POINTS){
+  const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_API_KEY}&results=${results}`;
+  return fetch(url).then(r=>r.json());
+}
+function fmt(dt){ if(!dt) return '—'; return new Date(dt).toLocaleString(); }
+function playAlert(){ try{ const a=new (window.AudioContext||window.webkitAudioContext)(); const o=a.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(800,a.currentTime); o.connect(a.destination); o.start(); o.stop(a.currentTime+0.35);}catch(e){} }
+
+// UI builders
 const petSelector = document.getElementById('petSelector');
+const toggles = document.getElementById('toggles');
+const historyList = document.getElementById('historyList');
+const alertBox = document.getElementById('alertBox');
 const petNameEl = document.getElementById('petName');
 const petPhotoEl = document.getElementById('petPhoto');
 const petDescEl = document.getElementById('petDesc');
-const historyList = document.getElementById('historyList');
-const lastUpdateEl = document.getElementById('lastUpdate');
-const lastLatEl = document.getElementById('lastLat');
-const lastLngEl = document.getElementById('lastLng');
-const lastStatusEl = document.getElementById('lastStatus');
+const statusInfo = document.getElementById('statusInfo');
 
-const newName = document.getElementById('newName');
-const newDesc = document.getElementById('newDesc');
-const newPhoto = document.getElementById('newPhoto');
-const savePetBtn = document.getElementById('savePetBtn');
+function buildUI(){
+  petSelector.innerHTML='';
+  toggles.innerHTML='';
+  PETS.forEach(p=>{
+    const div = document.createElement('div');
+    div.className='pet-card';
+    div.innerHTML = `<img src="${p.photo}" alt="${p.name}"><div><strong>${p.name}</strong><div style="font-size:13px;color:#666">${p.desc}</div></div>`;
+    div.onclick = ()=>{ selectPet(p.key); };
+    petSelector.appendChild(div);
 
-// Map
-const map = L.map('map').setView([13.719, -89.203], 15);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-const campusLayer = L.polygon(campusPolygon, { color:'#2b7cff', weight:2, fillOpacity:0.03 }).addTo(map);
-
-let pets = []; // {id, nombre, descripcion, fotoDataUrl}
-let visits = []; // {ts, lat, lng, inside}
-let markers = [];
-let selectedPetId = null;
-let lastLocation = null;
-
-// utilities
-function saveStorage(){ localStorage.setItem('mascotas_ues_pets', JSON.stringify(pets)); localStorage.setItem('mascotas_ues_visits', JSON.stringify(visits)); }
-function loadStorage(){ pets = JSON.parse(localStorage.getItem('mascotas_ues_pets') || '[]'); visits = JSON.parse(localStorage.getItem('mascotas_ues_visits') || '[]'); }
-
-function isInside(lat, lng){
-  const pt = turf.point([lng, lat]);
-  const poly = turf.polygon([[ 
-    [-89.2032, 13.7233], [-89.1994, 13.7224], [-89.1998, 13.7195],
-    [-89.2003, 13.7165], [-89.2060, 13.7152], [-89.2055, 13.7192],
-    [-89.2032, 13.7233]
-  ]]);
-  return turf.booleanPointInPolygon(pt, poly);
-}
-
-function renderPetSelector(){
-  petSelector.innerHTML = '';
-  pets.forEach(p=>{
-    const item = document.createElement('div');
-    item.className = 'pet-item';
-    item.innerHTML = `<img src="${p.foto}" alt="${p.nombre}"><div><strong>${p.nombre}</strong><div class="muted">${p.descripcion||''}</div></div>`;
-    item.onclick = ()=>{ selectPet(p.id); };
-    petSelector.appendChild(item);
+    const cb = document.createElement('label');
+    cb.innerHTML = `<input type="checkbox" data-key="${p.key}" ${p.visible? 'checked':''}/> <span style="display:inline-block;width:12px;height:12px;background:${p.color};margin-right:6px;border-radius:3px;vertical-align:middle;"></span>${p.name}`;
+    cb.querySelector('input').addEventListener('change', (e)=>{
+      p.visible = e.target.checked;
+      updateVisibility(p.key, p.visible);
+    });
+    toggles.appendChild(cb);
   });
-  if(pets.length && !selectedPetId) selectPet(pets[0].id);
 }
-
-function selectPet(id){
-  selectedPetId = id;
-  const p = pets.find(x=>x.id===id);
+function selectPet(key){
+  const p = PETS.find(x=>x.key===key);
   if(!p) return;
-  petNameEl.textContent = p.nombre;
-  petPhotoEl.src = p.foto;
-  petDescEl.textContent = p.descripcion || '';
-  renderHistoryForPet();
+  petNameEl.textContent = p.name;
+  petPhotoEl.src = p.photo;
+  petDescEl.textContent = p.desc;
+  // update status for last point
+  const arr = pointsByPet[key]||[];
+  if(arr.length>0){
+    const last = arr[arr.length-1];
+    statusInfo.textContent = `Última: ${fmt(last.ts)} — ${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`;
+  } else {
+    statusInfo.textContent = 'No hay posiciones aún';
+  }
 }
 
-function renderHistoryForPet(filterDate){
-  historyList.innerHTML = '';
-  const arr = visits.slice().reverse();
-  // if date filter applied
-  let filtered = arr;
-  if(filterDate){
-    const d = new Date(filterDate).toDateString();
-    filtered = arr.filter(v=> new Date(v.ts).toDateString() === d );
+// Update visibility of markers and polylines
+function updateVisibility(key, visible){
+  if(markerByPet[key]){ if(visible) map.addLayer(markerByPet[key]); else map.removeLayer(markerByPet[key]); }
+  if(polyByPet[key]){ if(visible) map.addLayer(polyByPet[key]); else map.removeLayer(polyByPet[key]); }
+  renderHistory(allPoints); // refresh history list to only show visible ones highlighted
+}
+
+// parse feeds and assign to pets by field4/field5 (case-insensitive)
+function assignFeeds(feeds){
+  // feeds: array of TS feed objects
+  // reset temp arrays
+  const unassigned = [];
+  const assignedPoints = {};
+  PETS.forEach(p=> assignedPoints[p.key]=[]);
+
+  feeds.forEach(f=>{
+    const lat = parseFloat(f.field1);
+    const lng = parseFloat(f.field2);
+    if(!isFinite(lat) || !isFinite(lng)) return;
+    const alt = f.field3 ? parseFloat(f.field3): null;
+    const id = (f.field4 || f.field5 || "").trim();
+    const entry = { lat, lng, alt, ts: f.created_at, entry_id: f.entry_id };
+    if(id){
+      const match = PETS.find(p => p.key.toLowerCase()===id.toLowerCase() || p.name.toLowerCase()===id.toLowerCase());
+      if(match) assignedPoints[match.key].push(entry);
+      else unassigned.push(entry);
+    } else {
+      unassigned.push(entry);
+    }
+  });
+
+  // If unassigned exist and some pets have no data, distribute last unassigned to them as fallback
+  const petsWithData = PETS.filter(p=>assignedPoints[p.key].length>0);
+  if(petsWithData.length===0 && unassigned.length>0){
+    // distribute latest among pets: give latest to all to have an initial marker
+    const last = unassigned[unassigned.length-1];
+    PETS.forEach(p=> assignedPoints[p.key].push(last));
   }
-  if(filtered.length===0){ historyList.innerHTML = '<div class="muted">No hay historial</div>'; return; }
-  filtered.forEach(v=>{
-    const date = new Date(v.ts);
+
+  return assignedPoints;
+}
+
+// main update loop
+async function updateAll(live=false){
+  try{
+    const data = await fetchFeeds(MAX_POINTS);
+    if(!data || !data.feeds) return;
+    const assigned = assignFeeds(data.feeds);
+    allPoints = []; // rebuild combined list with petKey
+    let anyOut = false;
+
+    PETS.forEach(p=>{
+      const arr = assigned[p.key] || [];
+      // sort by time asc
+      arr.sort((a,b)=> new Date(a.ts) - new Date(b.ts));
+      pointsByPet[p.key] = arr;
+      // update polyline
+      const coords = arr.map(x=>[x.lat,x.lng]);
+      if(polyByPet[p.key]) polyByPet[p.key].setLatLngs(coords);
+      else polyByPet[p.key] = L.polyline(coords, { color: p.color, weight:3 }).addTo(map);
+
+      // last marker
+      if(arr.length>0){
+        const last = arr[arr.length-1];
+        if(markerByPet[p.key]) markerByPet[p.key].setLatLng([last.lat,last.lng]);
+        else {
+          markerByPet[p.key] = L.circleMarker([last.lat,last.lng], { radius:8, color:p.color, fillColor:p.color, fillOpacity:1 }).addTo(map);
+          markerByPet[p.key].bindPopup(`<strong>${p.name}</strong><br>${fmt(last.ts)}<br>${last.lat.toFixed(6)}, ${last.lng.toFixed(6)}`);
+        }
+        // check inside campus
+        const inside = turf.booleanPointInPolygon(turf.point([last.lng,last.lat]), turf.polygon([[
+          [CAMPUS[0][1],CAMPUS[0][0]],[CAMPUS[1][1],CAMPUS[1][0]],[CAMPUS[2][1],CAMPUS[2][0]],
+          [CAMPUS[3][1],CAMPUS[3][0]],[CAMPUS[4][1],CAMPUS[4][0]],[CAMPUS[5][1],CAMPUS[5][0]],[CAMPUS[0][1],CAMPUS[0][0]]
+        ]]));
+        if(!inside) anyOut = true;
+        // append to combined history
+        allPoints.push({ petKey: p.key, petName: p.name, ...last });
+      }
+    });
+
+    // update alert box
+    if(anyOut){
+      alertBox.style.display='block';
+      alertBox.style.background='var(--danger)';
+      alertBox.textContent = '⚠️ Alerta: una o más mascotas están fuera del campus!';
+      playAlert();
+    } else {
+      alertBox.style.display='block';
+      alertBox.style.background='#28a745';
+      alertBox.textContent = '✅ Todas las mascotas dentro del campus';
+    }
+
+    // update visibility according to toggles
+    PETS.forEach(p=> updateVisibility(p.key,p.visible));
+
+    // update history UI (show combined but color-coded and allow filter by pet visibility)
+    renderHistory(allPoints);
+
+  }catch(err){
+    console.warn('Update error', err);
+  }
+}
+
+// render combined history (reverse chronological)
+definitely_not_valid = True
+
+function renderHistory(list){
+  historyList.innerHTML='';
+  if(!list || list.length===0){ historyList.innerHTML='<div style="color:#999">No hay historial.</div>'; return; }
+  const pts = [...list].reverse();
+  pts.forEach(p => {
+    const pet = PETS.find(x=>x.key===p.petKey);
     const el = document.createElement('div');
-    el.className = 'entry';
-    el.innerHTML = `<div>${date.toLocaleString()}</div><div style="font-weight:700">${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}</div><div>${v.inside? 'Dentro' : '<strong style="color:var(--danger)'>Fuera</strong>'}</div>`;
-    el.onclick = ()=>{ map.setView([v.lat, v.lng], 17); L.popup().setLatLng([v.lat, v.lng]).setContent(`${date.toLocaleString()}<br>${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}`).openOn(map); };
+    el.className='entry';
+    el.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><span style="width:10px;height:10px;background:${pet.color};display:inline-block;border-radius:3px"></span><div style="margin-left:6px"><strong>${pet.name}</strong><div style="font-size:12px;color:#666">${fmt(p.ts)}</div></div></div><div style="font-weight:700">${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</div>`;
+    el.addEventListener('click', ()=>{ map.setView([p.lat,p.lng],17); });
+    if(!pet.visible) el.style.opacity=0.4;
     historyList.appendChild(el);
   });
 }
 
-// add pet
-savePetBtn.addEventListener('click', ()=>{
-  const name = newName.value.trim();
-  const desc = newDesc.value.trim();
-  const file = newPhoto.files[0];
-  if(!name || !file){ alert('Nombre y foto obligatorios'); return; }
-  const reader = new FileReader();
-  reader.onload = (e)=>{
-    const dataUrl = e.target.result;
-    const id = 'pet_' + Date.now();
-    pets.push({ id, nombre: name, descripcion: desc, foto: dataUrl });
-    saveStorage();
-    renderPetSelector();
-    newName.value=''; newDesc.value=''; newPhoto.value='';
-  };
-  reader.readAsDataURL(file);
-});
-
-// ThingSpeak polling and saving visits only if changed
-async function pollThingSpeak(){
-  try{
-    const resp = await fetch(`https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL}/feeds.json?results=1`);
-    const data = await resp.json();
-    if(data && data.feeds && data.feeds.length>0){
-      const f = data.feeds[0];
-      const lat = parseFloat(f.field1);
-      const lng = parseFloat(f.field2);
-      if(isNaN(lat) || isNaN(lng)) return;
-      lastUpdateEl.textContent = new Date(f.created_at).toLocaleString();
-      lastLatEl.textContent = lat.toFixed(6);
-      lastLngEl.textContent = lng.toFixed(6);
-      const inside = isInside(lat, lng);
-      lastStatusEl.textContent = inside ? 'Dentro' : 'Fuera';
-      // check change
-      const changed = !lastLocation || Math.abs(lastLocation.lat - lat) > 1e-6 || Math.abs(lastLocation.lng - lng) > 1e-6;
-      lastLocation = { lat, lng };
-      // update markers
-      markers.forEach(m=>map.removeLayer(m)); markers = [];
-      pets.forEach(p=>{
-        const mk = L.marker([lat, lng]).addTo(map).bindPopup(`<img src="${p.foto}" width="80"><br><b>${p.nombre}</b><br>${p.descripcion||''}`);
-        markers.push(mk);
-      });
-      map.setView([lat, lng], 16);
-      if(!inside){
-        const notif = document.createElement('div');
-        notif.className = 'entry';
-        notif.innerHTML = `<strong style="color:var(--danger)">ALERTA: Fuera del campus</strong> — ${new Date().toLocaleString()} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        historyList.prepend(notif);
-      }
-      if(changed){
-        visits.push({ ts: Date.now(), lat, lng, inside });
-        // limit visits to last 2000 to avoid huge localStorage
-        if(visits.length>2000) visits = visits.slice(visits.length-2000);
-        saveStorage();
-        renderHistoryForPet();
-      }
-    }
-  }catch(err){ console.warn('ThingSpeak poll error', err); }
-}
-
-// search & filter
-document.getElementById('searchBtn').addEventListener('click', ()=>{
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  if(!q){ renderPetSelector(); return; }
-  const filtered = pets.filter(p => p.nombre.toLowerCase().includes(q));
-  petSelector.innerHTML = '';
-  filtered.forEach(p=>{
-    const item = document.createElement('div');
-    item.className = 'pet-item';
-    item.innerHTML = `<img src="${p.foto}"><div><strong>${p.nombre}</strong><div class="muted">${p.descripcion||''}</div></div>`;
-    item.onclick = ()=>selectPet(p.id);
-    petSelector.appendChild(item);
-  });
-});
-
-document.getElementById('dateFilter').addEventListener('change', (e)=>{
-  renderHistoryForPet(e.target.value);
-});
-
-// init
-loadStorage();
-renderPetSelector();
-// start polling frequently to simulate realtime
-pollThingSpeak();
-setInterval(pollThingSpeak, POLL_MS);
+// initial ui build and start loop
+buildUI();
+selectPet(PETS[0].key);
+updateAll(false);
+setInterval(()=>updateAll(true), REFRESH_MS);

@@ -1,13 +1,10 @@
-Mascotas UES - Versión Local (GitHub Pages)
-
-Instrucciones rápidas:
-1. Descomprime este ZIP y sube los archivos a un repositorio GitHub (branch main).
-2. Activa GitHub Pages (Settings -> Pages -> selecciona main branch / root).
-3. Abre la URL pública de GitHub Pages. La app funciona 100% en el navegador.
-4. Agrega mascotas (nombre, descripción, foto). Los datos se guardan en localStorage.
-5. Asegúrate que ThingSpeak publique en el canal 3146056 (field1 = lat, field2 = lng).
-6. La app hará polling cada 15s y guardará una visita solo cuando cambie la ubicación.
+Mascotas UES - Multi (Local, GitHub Pages)
+Instrucciones:
+1. Subir todo el contenido de esta carpeta al repo en GitHub (branch main) y activar GitHub Pages (root).
+2. La app usará ThingSpeak canal 3146056 (lectura) y espera que cada feed incluya field1=lat, field2=lng, optional field3=alt, and field4 or field5 = pet key (nessa/cleo/doguie).
+3. Si no proporcionas el pet key, el sistema puede asignar un unassigned fallback; para fiabilidad incluye field4 con 'nessa', 'cleo' o 'doguie'.
+4. La app hace polling cada 5s y muestra el historial (últimos puntos) y alertas de salida del campus.
 
 Notas:
-- localStorage es por navegador; si borras caché los datos se pierden.
-- Si quieres compartir mascotas entre usuarios, podemos cambiar a JSONBin/similar después.
+- localStorage no se usa: todo viene del canal ThingSpeak.
+- Si quieres que las mascotas se puedan crear/editar desde la web y persistir, puedo añadir esa funcionalidad (usando JSONBin o backend).
