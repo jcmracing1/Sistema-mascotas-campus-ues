@@ -1,15 +1,13 @@
-// script.js - Arquitectura JSONBin con Base64, Bin Maestro y optimización Promise.all
+// script.js - Arquitectura Firebase/Firestore (Seguro y Escalable)
 
-// 🚨 CONFIGURACIÓN REQUERIDA 🚨
-// 1. REEMPLAZA CON TU Access Key de JSONBin
-const JSONBIN_MASTER_KEY = "$2a$10$.4D97bG7TmCMHK2IxDIbAekq00vrpkCEmQafbQ8MaJWxBcj8KQ9Le"; 
-const JSONBIN_BASE = "https://api.jsonbin.io/v3/b";
+// 🚨 CONFIGURACIÓN DE SERVICIOS EXTERNOS 🚨
 
-// 2. REEMPLAZA CON EL ID DE TU BIN MAESTRO (creado con { "pet_ids": [] })
-const MASTER_BIN_ID = "6910195c43b1c97be9a1d645"; 
+// ⚠️ REEMPLAZA CON TU CLIENT ID DE IMGUR
+const IMGUR_CLIENT_ID = "jcmracing"; 
+const IMGUR_UPLOAD_URL = "https://api.imgur.com/3/image";
 
 const THINGSPEAK_CHANNEL = 3146056;
-const POLL_MS = 3000; // 3 segundos para una actualización más rápida
+const POLL_MS = 5000; // 5 segundos para una actualización más rápida
 
 // --- Inicialización de Mapa y Elementos ---
 
@@ -18,6 +16,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const campusPoly = [[13.7233, -89.2032],[13.7224, -89.1994],[13.7195, -89.1998],[13.7165, -89.2003],[13.7152, -89.2060],[13.7192, -89.2055]];
 L.polygon(campusPoly, {color:'#2b7cff', weight:2, fillOpacity:0.03}).addTo(map);
 
+// ... (Declaración de constantes DOM petSelector, petNameEl, etc.) ...
 const petSelector = document.getElementById('petSelector');
 const petNameEl = document.getElementById('petName');
 const petPhotoEl = document.getElementById('petPhoto');
@@ -32,166 +31,124 @@ const newDesc = document.getElementById('newDesc');
 const newPhoto = document.getElementById('newPhoto');
 const savePetBtn = document.getElementById('savePetBtn');
 
-let pets = []; // {binId, nombre, descripcion, foto (Base64), visits}
+let pets = []; // {id (de Firestore), nombre, descripcion, foto (URL), visits}
 let markers = [];
 let lastLocation = null;
 
-// --- Funciones de Utilidad (JSONBin) ---
+// --- Funciones de Utilidad (Imgur) ---
 
-// Función modificada para guardar la cadena Base64
-async function createPetBin(name, desc, base64Data) { 
-  const payload = { meta: { nombre: name, descripcion: desc }, foto: base64Data, visits: [] }; 
-  const res = await fetch(JSONBIN_BASE, { 
-    method:'POST', 
-    headers: { 
-        'Content-Type':'application/json', 
-        'X-Master-Key': JSONBIN_MASTER_KEY 
-    }, 
-    body: JSON.stringify({ data: payload, private: true }) 
-  });
-  if(!res.ok) throw new Error('Create bin failed: ' + res.status);
-  const j = await res.json();
-  const id = j.metadata && j.metadata.id ? j.metadata.id : (j.record && j.record.id ? j.record.id : null);
-  return id;
+async function uploadToImgur(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    const res = await fetch(IMGUR_UPLOAD_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Client-ID ${IMGUR_CLIENT_ID}` },
+        body: formData
+    });
+
+    if (!res.ok) throw new Error('Fallo al subir a Imgur: ' + res.statusText);
+    const json = await res.json();
+    if (!json.success || !json.data.link) throw new Error('Respuesta de Imgur inválida.');
+    return json.data.link;
 }
 
-async function readBin(binId) {
-  const url = `${JSONBIN_BASE}/${binId}/latest`;
-  const res = await fetch(url, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
-  if(!res.ok) return null;
-  const j = await res.json();
-  // Devuelve el objeto record completo (Bin Maestro: { pet_ids: [] } o Bin Mascota: { meta: {}, foto: "", visits: [] })
-  return j.record ? j.record : j; 
-}
-
-async function updateBin(binId, data) {
-  const url = `${JSONBIN_BASE}/${binId}`;
-  const res = await fetch(url, { method:'PUT', headers: { 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY }, body: JSON.stringify({ data: data }) });
-  return res.ok;
-}
-
-// --- Lógica de Creación de Mascotas (Usa FileReader) ---
+// --- Lógica de Creación de Mascotas (Firestore) ---
 
 savePetBtn.addEventListener('click', async ()=>{
     const name = newName.value.trim();
     const desc = newDesc.value.trim();
     const file = newPhoto.files[0];
 
-    if(!name || !file){ 
-      alert('Nombre y foto requeridos'); 
-      return; 
+    if(!name || !file){ alert('Nombre y foto requeridos'); return; }
+
+    // 1. Subir la imagen a Imgur
+    let photoUrl = '';
+    try {
+        savePetBtn.textContent = "Subiendo foto a Imgur...";
+        photoUrl = await uploadToImgur(file); 
+        savePetBtn.textContent = "Guardando datos en DB...";
+    } catch(err) {
+        console.error(err); 
+        alert('Error subiendo foto a Imgur: ' + err.message); 
+        savePetBtn.textContent = "Guardar mascota";
+        return;
     }
-
-    // 1. Lector de archivos para convertir la foto a Base64
-    const reader = new FileReader();
-
-    reader.onload = async (e) => {
-        const base64Data = e.target.result; // <-- Foto en Base64
-        savePetBtn.textContent = "Guardando datos...";
-
-        // 2. Crear el Bin individual de la Mascota
-        let binId;
-        try{
-            binId = await createPetBin(name, desc, base64Data);
-        }catch(err){ 
-            console.error(err); 
-            alert('Error creando Bin de mascota: ' + err.message); 
-            savePetBtn.textContent = "Guardar mascota";
-            return;
-        }
-
-        // 3. Añadir el nuevo Bin ID al Bin Maestro ({ pet_ids: [] })
-        try{
-            const masterData = await readBin(MASTER_BIN_ID) || { pet_ids: [] }; 
-            if (!Array.isArray(masterData.pet_ids)) { masterData.pet_ids = []; } // Protección
-            masterData.pet_ids.push(binId);
-            await updateBin(MASTER_BIN_ID, masterData);
-        } catch(err) {
-            console.error("Error al actualizar Bin Maestro. La mascota fue creada pero podría no aparecer:", err);
-            alert("Mascota creada, pero no se pudo registrar en la lista principal. Revisar Bin Maestro.");
-        }
+    
+    // 2. Crear el Documento en la Colección 'pets' de Firestore
+    try{
+        const newPetData = {
+            nombre: name,
+            descripcion: desc,
+            fotoURL: photoUrl, // Guardamos la URL
+            activo: true
+        };
         
-        // 4. Actualizar la UI
-        pets.push({ binId: binId, nombre: name, descripcion: desc, foto: base64Data, visits: [] });
-        localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({ binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto }))));
+        // addDoc agrega un nuevo documento a la colección "pets"
+        const docRef = await window.db_functions.addDoc(window.db_functions.collection(window.db, "pets"), newPetData);
+        const petId = docRef.id;
+
+        // 3. Actualizar la UI
+        pets.push({ id: petId, nombre: name, descripcion: desc, foto: photoUrl, visits: [] });
         renderPetSelector();
         newName.value=''; newDesc.value=''; newPhoto.value='';
-        alert('Mascota creada. Bin ID: ' + binId);
+        alert('Mascota creada. ID de Firestore: ' + petId);
         savePetBtn.textContent = "Guardar mascota";
-    };
-
-    reader.onerror = (e) => {
-        alert("Error al leer el archivo de la imagen.");
+    }catch(err){ 
+        console.error(err); 
+        alert('Error creando mascota en Firestore: ' + err.message); 
         savePetBtn.textContent = "Guardar mascota";
-    };
-
-    reader.readAsDataURL(file); // Inicia la lectura del archivo
-    savePetBtn.textContent = "Leyendo archivo...";
+    }
 });
 
-// --- Lógica de Carga y Renderización ---
+// --- Lógica de Carga y Renderización (Firestore) ---
 
 function renderPetSelector(){
   petSelector.innerHTML = '';
   pets.forEach(p=>{
     const div = document.createElement('div');
     div.className = 'pet-item';
+    // p.foto es ahora la URL de Imgur/GitHub Pages
     div.innerHTML = `<img src="${p.foto}" alt="${p.nombre}"><div><strong>${p.nombre}</strong><div class="muted">${p.descripcion||''}</div></div>`;
-    div.onclick = ()=>selectPet(p.binId);
+    div.onclick = ()=>selectPet(p.id); // Usamos el ID de Firestore
     petSelector.appendChild(div);
   });
-  if(pets.length>0) selectPet(pets[0].binId);
+  if(pets.length>0) selectPet(pets[0].id);
 }
 
-// Función modificada para leer el Bin Maestro
-async function loadAllBins(){
-  const masterData = await readBin(MASTER_BIN_ID); 
-  
-  // Asegurarse de que el Bin Maestro tenga la estructura { pet_ids: [] }
-  if(!masterData || !masterData.pet_ids || masterData.pet_ids.length === 0){
-    console.log("No hay IDs en el Bin Maestro o la estructura es incorrecta.");
+// Función para obtener todas las mascotas desde la colección 'pets'
+async function loadAllPetsFromDB(){
+  try{
+    const petsSnapshot = await window.db_functions.getDocs(window.db_functions.collection(window.db, "pets"));
+    
+    pets = petsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        nombre: doc.data().nombre,
+        descripcion: doc.data().descripcion,
+        foto: doc.data().fotoURL, // Usamos fotoURL
+        visits: [] // Las visits se cargan por separado
+    }));
+    
+    // Aquí podrías cargar el historial de visits para la mascota seleccionada si fuera necesario
+    // Pero por ahora, mantenemos 'visits: []' y se llenan en el polling para mantener la lógica de tu UI.
+    
     renderPetSelector();
-    return;
+  } catch(err) {
+    console.error("Error cargando mascotas de Firestore:", err);
+    alert("Error al cargar la lista de mascotas. Revisa las credenciales y las reglas de Firebase.");
   }
-  
-  const masterList = masterData.pet_ids;
-  
-  // Leer cada Bin individualmente (concurrente con Promise.all)
-  const petPromises = masterList.map(async binId => {
-    const rec = await readBin(binId);
-    if(rec){
-      return { 
-        binId: binId, 
-        nombre: rec.meta.nombre, 
-        descripcion: rec.meta.descripcion, 
-        foto: rec.foto, // Base64
-        visits: rec.visits || [] 
-      };
-    }
-    return null;
-  });
-
-  pets = (await Promise.all(petPromises)).filter(p => p !== null);
-  
-  // Actualiza el caché local (solo metadatos)
-  localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({
-    binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto
-  }))));
-
-  renderPetSelector();
 }
 
-async function selectPet(binId){
-  let p = pets.find(x=>x.binId===binId);
-  if(!p){
-    // Caso de respaldo si el bin no estaba en la lista local
-    const rec = await readBin(binId);
-    if(!rec) return;
-    p = { binId: binId, nombre: rec.meta.nombre, descripcion: rec.meta.descripcion, foto: rec.foto, visits: rec.visits || [] };
-  }
+async function selectPet(petId){
+  let p = pets.find(x=>x.id===petId);
+  if(!p) return; // Si no se encuentra, salimos.
+  
   petNameEl.textContent = p.nombre;
-  petPhotoEl.src = p.foto; // Muestra la Base64
+  petPhotoEl.src = p.foto; 
   petDescEl.textContent = p.descripcion || '';
+  
+  // TO-DO: Implementar la carga del historial desde la colección 'locations'
+  // Por ahora, solo muestra lo que se ha guardado localmente en el polling
   renderHistory(p.visits || []);
 }
 
@@ -208,10 +165,11 @@ function renderHistory(arr){
   });
 }
 
-// --- Lógica de Polling ThingSpeak (Optimizada con Promise.all) ---
+// --- Lógica de Polling ThingSpeak (Guarda en la colección 'locations') ---
 
 async function pollThingSpeak(){
   try{
+    // ... (Lógica de ThingSpeak y cálculo de lat, lng, changed) ...
     const res = await fetch(`https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL}/feeds.json?results=1`);
     const j = await res.json();
     if(!j || !j.feeds || j.feeds.length===0) return;
@@ -233,39 +191,46 @@ async function pollThingSpeak(){
     const inside = turf.booleanPointInPolygon(turf.point([lng, lat]), turf.polygon([[ [-89.2032,13.7233],[-89.1994,13.7224],[-89.1998,13.7195],[-89.2003,13.7165],[-89.2060,13.7152],[-89.2055,13.7192],[-89.2032,13.7233] ]]));
     if(!inside){ const n = document.createElement('div'); n.className='entry'; n.innerHTML=`<strong style="color:var(--danger)">ALERTA: Fuera del campus</strong> — ${new Date().toLocaleString()} — ${lat.toFixed(6)}, ${lng.toFixed(6)}`; historyList.prepend(n); }
 
-    // BLOQUE OPTIMIZADO CON PROMISE.ALL (para actualizar cada 3 segundos)
+    // BLOQUE OPTIMIZADO CON PROMISE.ALL (para guardar ubicaciones en la colección 'locations')
     if(changed && pets.length > 0){
         const updatePromises = pets.map(async (p) => {
             try {
-                const rec = await readBin(p.binId);
-                const visits = (rec && rec.visits) ? rec.visits : [];
-                visits.push({ lat: lat, lng: lng, ts: Date.now() });
-                
-                const newData = { meta: rec.meta, foto: rec.foto, visits: visits };
-                const success = await updateBin(p.binId, newData);
+                // Agregar un nuevo documento a la colección 'locations'
+                await window.db_functions.addDoc(window.db_functions.collection(window.db, "locations"), {
+                    petId: p.id,
+                    lat: lat, 
+                    lng: lng,
+                    ts: new Date() // Usamos el objeto Date de JS/Firestore
+                });
 
-                if (success) {
-                    p.visits = visits;
-                    return true;
-                }
-                return false;
+                // Actualizar el historial local (pets.visits) para la UI temporal
+                p.visits.push({ lat: lat, lng: lng, ts: Date.now() });
+                return true;
             } catch (err) { 
-                console.warn('Error updating bin for', p.binId, err); 
+                console.warn('Error saving location for', p.nombre, err); 
                 return false;
             }
         });
 
         await Promise.all(updatePromises); 
         
-        localStorage.setItem('jsonbin_pet_bins', JSON.stringify(pets.map(p => ({ binId: p.binId, nombre: p.nombre, descripcion: p.descripcion, foto: p.foto }))));
-        const sel = pets.find(p => p.binId === petSelector.querySelector('.active')?.dataset.binid) || pets[0];
+        // Renderizar el historial de la mascota seleccionada
+        const sel = pets.find(p => p.id === petSelector.querySelector('.active')?.dataset.id) || pets[0];
         if(sel) renderHistory(sel.visits || []);
     }
-    // FIN DEL BLOQUE OPTIMIZADO
-  }catch(err){ console.warn('ThingSpeak poll error', err); }
 }
 
 // --- Inicio de la Aplicación ---
-loadAllBins();
-pollThingSpeak();
-setInterval(pollThingSpeak, POLL_MS);
+// Espera a que la BD esté inicializada antes de cargar
+if (window.db) {
+    loadAllPetsFromDB();
+    pollThingSpeak();
+    setInterval(pollThingSpeak, POLL_MS);
+} else {
+    // Si la BD no está lista, espera un poco y luego inicia
+    setTimeout(() => {
+        loadAllPetsFromDB();
+        pollThingSpeak();
+        setInterval(pollThingSpeak, POLL_MS);
+    }, 500);
+}
