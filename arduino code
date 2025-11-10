@@ -1,0 +1,86 @@
+#include <WiFi.h>
+#include <TinyGPSPlus.h>
+#include <HTTPClient.h>
+#include <HardwareSerial.h>
+
+// ===== CONFIGURACIÓN WiFi =====
+const char* ssid     = "EGO-VUKP";
+const char* password = "xe26mp84nd";
+
+// ===== CONFIGURACIÓN GPS =====
+#define GPS_RX 16
+#define GPS_TX 17
+#define GPS_BAUD 9600
+
+HardwareSerial gpsSerial(2);
+TinyGPSPlus gps;
+
+// ===== CONFIGURACIÓN THINGSPEAK =====
+String apiKey = "GSRK8SFFHTSPZALK";    // <-- Pega aquí tu Write API Key
+String serverName = "https://api.thingspeak.com/update";
+unsigned long lastSend = 0;
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println("\n=== ESP32 + GPS + ThingSpeak ===");
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando a WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n✅ WiFi conectado!");
+  Serial.print("IP local: "); Serial.println(WiFi.localIP());
+
+  gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
+  Serial.println("GPS inicializado. Esperando señal satelital...");
+}
+
+void loop() {
+  // Leer datos del GPS
+  while (gpsSerial.available()) {
+    gps.encode(gpsSerial.read());
+  }
+
+  // Enviar cada 15 segundos (ThingSpeak permite máximo 1 actualización / 15 s)
+  if (millis() - lastSend > 15000) {
+    lastSend = millis();
+
+    if (gps.location.isValid()) {
+      float lat = gps.location.lat();
+      float lng = gps.location.lng();
+      float alt = gps.altitude.meters();
+
+      Serial.println("---- Datos GPS ----");
+      Serial.print("Latitud: "); Serial.println(lat, 6);
+      Serial.print("Longitud: "); Serial.println(lng, 6);
+      Serial.print("Altitud: "); Serial.println(alt);
+      Serial.println("-------------------");
+
+      if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        String url = serverName + "?api_key=" + apiKey +
+                     "&field1=" + String(lat, 6) +
+                     "&field2=" + String(lng, 6) +
+                     "&field3=" + String(alt, 2);
+
+        http.begin(url);
+        int httpCode = http.GET();
+        if (httpCode > 0) {
+          Serial.printf("✅ Datos enviados a ThingSpeak\n");
+          Serial.printf("Respuesta HTTP: %d\n", httpCode);
+        } else {
+          Serial.printf("⚠️ Error al enviar: %s\n", http.errorToString(httpCode).c_str());
+        }
+        http.end();
+      } else {
+        Serial.println("⚠️ WiFi no conectado, reintentando...");
+        WiFi.reconnect();
+      }
+    } else {
+      Serial.println("Esperando señal GPS...");
+    }
+  }
+}
